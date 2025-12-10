@@ -54,55 +54,49 @@ In Supabase Dashboard:
 
 1. Click "SQL Editor" in left sidebar
 2. Click "+ New Query"
-3. Run migrations IN THIS ORDER:
+3. Run migrations IN THIS ORDER (3 total):
 
 MIGRATION 1 - Initial Schema:
 -------------------------------
-File location: supabase/migrations/20241209000000_initial_schema.sql
+File: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209000000_initial_schema.sql
 
 In Supabase SQL Editor:
 1. Click "+ New Query"
-2. Open file: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209000000_initial_schema.sql
-3. Copy ALL contents
+2. Open file: 20241209000000_initial_schema.sql
+3. Copy ALL 356 lines
 4. Paste into Supabase SQL Editor
 5. Click "Run" (bottom right)
 6. Wait for "Success" message
 
+Creates: Organizations, Events, Tickets, Orders, Payments, Check-ins, Profiles
 
-MIGRATION 2 - Guest Management:
--------------------------------
-File location: supabase/migrations/20241209010000_guest_management.sql
+
+MIGRATION 2 - Guest Management + Accommodations:
+------------------------------------------------
+File: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209010000_guest_management.sql
 
 1. Click "+ New Query" again
-2. Open file: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209010000_guest_management.sql
-3. Copy ALL contents
+2. Open file: 20241209010000_guest_management.sql
+3. Copy ALL 230 lines
 4. Paste into Supabase SQL Editor
 5. Click "Run"
 6. Wait for "Success"
 
+Creates: Guests, Guest Groups, Dietary Preferences, Accommodations, Transportation
 
-MIGRATION 3 - Accommodation:
--------------------------------
-File location: supabase/migrations/20241209015000_accommodation_system.sql
+
+MIGRATION 3 - Vendor Marketplace:
+---------------------------------
+File: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209020000_vendor_marketplace.sql
 
 1. Click "+ New Query" again
-2. Open file: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209015000_accommodation_system.sql
-3. Copy ALL contents
+2. Open file: 20241209020000_vendor_marketplace.sql
+3. Copy ALL 467 lines
 4. Paste into Supabase SQL Editor
 5. Click "Run"
 6. Wait for "Success"
 
-
-MIGRATION 4 - Vendor Marketplace:
--------------------------------
-File location: supabase/migrations/20241209020000_vendor_marketplace.sql
-
-1. Click "+ New Query" again
-2. Open file: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209020000_vendor_marketplace.sql
-3. Copy ALL contents
-4. Paste into Supabase SQL Editor
-5. Click "Run"
-6. Wait for "Success"
+Creates: Vendors, Services, Packages, Quote Requests, Bookings, Reviews, Favorites
 
 
 Step 3: Get API Keys
