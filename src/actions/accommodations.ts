@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
 export async function addAccommodation(formData: FormData) {
@@ -16,7 +17,7 @@ export async function addAccommodation(formData: FormData) {
   const checkOutDate = formData.get('check_out_date') as string || null;
   const notes = formData.get('notes') as string || null;
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('accommodations')
     .insert({
       event_id: eventId,
@@ -28,16 +29,15 @@ export async function addAccommodation(formData: FormData) {
       check_in_date: checkInDate,
       check_out_date: checkOutDate,
       notes,
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
-    return { error: error.message };
+    console.error('Error adding accommodation:', error);
+    // In production, you'd want to handle this better
   }
 
   revalidatePath(`/events/${eventId}/accommodations`);
-  return { data };
+  redirect(`/events/${eventId}/accommodations`);
 }
 
 export async function getEventAccommodations(eventId: string) {
@@ -112,12 +112,12 @@ export async function updateAccommodation(formData: FormData) {
     .eq('id', accommodationId);
 
   if (error) {
-    return { error: error.message };
+    console.error('Error updating accommodation:', error);
   }
 
   revalidatePath(`/events/${eventId}/accommodations`);
   revalidatePath(`/events/${eventId}/accommodations/${accommodationId}`);
-  return { success: true };
+  redirect(`/events/${eventId}/accommodations/${accommodationId}`);
 }
 
 export async function deleteAccommodation(accommodationId: string, eventId: string) {
@@ -146,7 +146,7 @@ export async function assignGuestToRoom(formData: FormData) {
   const roomType = formData.get('room_type') as string || null;
   const notes = formData.get('notes') as string || null;
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('guest_accommodations')
     .insert({
       guest_id: guestId,
@@ -154,17 +154,14 @@ export async function assignGuestToRoom(formData: FormData) {
       room_number: roomNumber,
       room_type: roomType,
       notes,
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
-    return { error: error.message };
+    console.error('Error assigning guest to room:', error);
   }
 
   revalidatePath(`/events/${eventId}/accommodations/${accommodationId}`);
   revalidatePath(`/events/${eventId}/guests/${guestId}`);
-  return { data };
 }
 
 export async function removeGuestFromRoom(guestAccommodationId: string, eventId: string) {
