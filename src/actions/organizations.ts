@@ -62,7 +62,7 @@ export async function getUserOrganizations() {
     .from('organization_members')
     .select(`
       role,
-      organization:organizations (
+      organizations (
         id,
         name,
         slug,
@@ -74,10 +74,12 @@ export async function getUserOrganizations() {
 
   if (error) return [];
 
-  return data.map(item => ({
-    ...item.organization,
-    role: item.role,
-  }));
+  return data
+    .filter(item => item.organizations)
+    .map(item => ({
+      ...(item.organizations as any),
+      role: item.role,
+    }));
 }
 
 export async function getOrganization(orgId: string) {
