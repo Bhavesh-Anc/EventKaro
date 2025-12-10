@@ -1,0 +1,255 @@
+========================================
+  EVENTKARO - DEPLOYMENT GUIDE
+  Do It Yourself - Complete Steps
+========================================
+
+PART 1: PUSH TO GITHUB
+========================================
+
+Step 1: Create GitHub Repository
+---------------------------------
+1. Go to: https://github.com/new
+2. Repository name: EventKaro
+3. Make it Public or Private
+4. DON'T check "Initialize with README"
+5. Click "Create repository"
+6. COPY the URL shown (example: https://github.com/YOUR_USERNAME/EventKaro.git)
+
+Step 2: Push Your Code
+-----------------------
+Open Command Prompt and run:
+
+cd C:\Users\Bhavesh\Desktop\in\EventKaro
+
+git remote add origin https://github.com/YOUR_USERNAME/EventKaro.git
+
+git push -u origin main
+
+If asked for credentials:
+- Username: Your GitHub username
+- Password: Use Personal Access Token from https://github.com/settings/tokens
+  (NOT your GitHub password - create a new token with "repo" permission)
+
+✅ DONE! Your code is on GitHub.
+
+
+PART 2: SET UP SUPABASE DATABASE
+========================================
+
+Step 1: Create Supabase Project
+--------------------------------
+1. Go to: https://supabase.com/dashboard
+2. Click "New Project"
+3. Fill in:
+   - Name: EventKaro Production
+   - Database Password: (choose strong password - SAVE THIS!)
+   - Region: Mumbai or Singapore
+4. Click "Create new project"
+5. WAIT 2-3 minutes for project setup
+
+
+Step 2: Run Database Migrations
+--------------------------------
+In Supabase Dashboard:
+
+1. Click "SQL Editor" in left sidebar
+2. Click "+ New Query"
+3. Run migrations IN THIS ORDER:
+
+MIGRATION 1 - Initial Schema:
+-------------------------------
+File location: supabase/migrations/20241209000000_initial_schema.sql
+
+In Supabase SQL Editor:
+1. Click "+ New Query"
+2. Open file: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209000000_initial_schema.sql
+3. Copy ALL contents
+4. Paste into Supabase SQL Editor
+5. Click "Run" (bottom right)
+6. Wait for "Success" message
+
+
+MIGRATION 2 - Guest Management:
+-------------------------------
+File location: supabase/migrations/20241209010000_guest_management.sql
+
+1. Click "+ New Query" again
+2. Open file: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209010000_guest_management.sql
+3. Copy ALL contents
+4. Paste into Supabase SQL Editor
+5. Click "Run"
+6. Wait for "Success"
+
+
+MIGRATION 3 - Accommodation:
+-------------------------------
+File location: supabase/migrations/20241209015000_accommodation_system.sql
+
+1. Click "+ New Query" again
+2. Open file: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209015000_accommodation_system.sql
+3. Copy ALL contents
+4. Paste into Supabase SQL Editor
+5. Click "Run"
+6. Wait for "Success"
+
+
+MIGRATION 4 - Vendor Marketplace:
+-------------------------------
+File location: supabase/migrations/20241209020000_vendor_marketplace.sql
+
+1. Click "+ New Query" again
+2. Open file: C:\Users\Bhavesh\Desktop\in\EventKaro\supabase\migrations\20241209020000_vendor_marketplace.sql
+3. Copy ALL contents
+4. Paste into Supabase SQL Editor
+5. Click "Run"
+6. Wait for "Success"
+
+
+Step 3: Get API Keys
+--------------------
+In Supabase Dashboard:
+
+1. Click "Settings" (gear icon bottom left)
+2. Click "API" in settings menu
+3. COPY these three values (you'll need them for Vercel):
+
+   PROJECT URL:
+   (looks like: https://xxxxxxxxxxxxx.supabase.co)
+   
+   ANON PUBLIC KEY:
+   (long string starting with "eyJ...")
+   
+   SERVICE ROLE KEY:
+   (long string starting with "eyJ..." - KEEP THIS SECRET!)
+
+SAVE these keys in a text file!
+
+
+Step 4: Configure Auth URLs
+----------------------------
+1. In Supabase Dashboard: Authentication → URL Configuration
+2. Add these to "Redirect URLs":
+
+   http://localhost:3000/auth/callback
+   
+   (You'll add Vercel URL here after deployment)
+
+3. Click "Save"
+
+✅ DONE! Database is ready.
+
+
+PART 3: DEPLOY TO VERCEL
+========================================
+
+Step 1: Import Project to Vercel
+---------------------------------
+1. Go to: https://vercel.com/new
+2. Sign in with GitHub
+3. Click "Import Git Repository"
+4. Select your "EventKaro" repository
+5. Click "Import"
+
+
+Step 2: Add Environment Variables
+----------------------------------
+In the "Configure Project" screen, add these:
+
+Click "Environment Variables" section
+
+Variable 1:
+Name:  NEXT_PUBLIC_SUPABASE_URL
+Value: (paste your Supabase Project URL from Step 3 above)
+
+Variable 2:
+Name:  NEXT_PUBLIC_SUPABASE_ANON_KEY
+Value: (paste your Supabase Anon Public Key)
+
+Variable 3:
+Name:  SUPABASE_SERVICE_ROLE_KEY
+Value: (paste your Supabase Service Role Key)
+
+
+Step 3: Deploy
+--------------
+1. Click "Deploy"
+2. WAIT 2-3 minutes
+3. You'll see "Congratulations!" when done
+4. Copy your deployment URL (looks like: https://eventkaro-xxxxx.vercel.app)
+
+
+Step 4: Update Supabase Auth
+-----------------------------
+Go back to Supabase:
+
+1. Authentication → URL Configuration
+2. Add your Vercel URL to "Redirect URLs":
+
+   https://your-actual-vercel-url.vercel.app/auth/callback
+
+3. Click "Save"
+
+✅ DONE! Your app is LIVE!
+
+
+PART 4: TEST YOUR DEPLOYMENT
+========================================
+
+Visit your Vercel URL and test:
+
+□ Sign up for account
+□ Create organization
+□ Create event
+□ Add guests
+□ Browse vendors
+□ Request quote
+□ Register as vendor
+
+
+TROUBLESHOOTING
+========================================
+
+Problem: Git push fails with "Permission denied"
+Solution: Use Personal Access Token instead of password
+         https://github.com/settings/tokens
+
+Problem: Supabase migration fails
+Solution: Make sure you ran migrations in correct order
+         Run them one by one, wait for "Success" each time
+
+Problem: Vercel build fails
+Solution: Check environment variables are correct
+         No extra spaces in keys/values
+
+Problem: Auth not working on deployed site
+Solution: Make sure you added Vercel URL to Supabase redirect URLs
+         Format: https://your-app.vercel.app/auth/callback
+
+
+SUPPORT
+========================================
+
+Need help?
+- Check README.md in project folder
+- Check VENDOR_MARKETPLACE_COMPLETE.md for features
+- Vercel Discord: https://vercel.com/discord
+- Supabase Discord: https://discord.supabase.com
+
+
+YOU'RE DONE! 🎉
+========================================
+
+Your EventKaro platform is now:
+✅ On GitHub
+✅ Database ready on Supabase
+✅ Live on Vercel
+✅ Ready for users!
+
+Next steps:
+- Share with friends for testing
+- Get feedback
+- Add custom domain (optional)
+- Monitor usage in Vercel/Supabase dashboards
+
+Enjoy your event management platform!
+========================================
