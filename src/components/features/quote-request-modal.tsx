@@ -2,9 +2,10 @@
 
 import { useState, useTransition, useEffect } from 'react';
 import { createQuoteRequest } from '@/actions/vendors';
-import { getOrganizationEvents } from '@/actions/events';
+import { getUserEvents } from '@/actions/events';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import Link from 'next/link';
 
 interface QuoteRequestModalProps {
   isOpen: boolean;
@@ -21,15 +22,33 @@ export function QuoteRequestModal({
 }: QuoteRequestModalProps) {
   const [isPending, startTransition] = useTransition();
   const [events, setEvents] = useState<any[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      // Fetch user's events - we'll need to add this action
-      // For now, we'll handle it client-side
       setSuccess(false);
+      setLoading(true);
+      setSelectedEvent(null);
+
+      // Load user's events
+      getUserEvents().then((userEvents) => {
+        setEvents(userEvents);
+        setLoading(false);
+      }).catch((error) => {
+        console.error('Error loading events:', error);
+        setEvents([]);
+        setLoading(false);
+      });
     }
   }, [isOpen]);
+
+  const handleEventChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const eventId = e.target.value;
+    const event = events.find(ev => ev.id === eventId);
+    setSelectedEvent(event);
+  };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -85,21 +104,44 @@ export function QuoteRequestModal({
             <>
               <div>
                 <Label htmlFor="event_id">Select Event *</Label>
-                <select
-                  id="event_id"
-                  name="event_id"
-                  required
-                  disabled={isPending}
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="">Choose an event...</option>
-                  {/* Events will be populated here - for now using placeholder */}
-                  <option value="event-1">My Wedding - Dec 25, 2025</option>
-                  <option value="event-2">Birthday Party - Jan 15, 2026</option>
-                </select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Select which event you need this vendor for
-                </p>
+                {loading ? (
+                  <div className="w-full rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                    Loading events...
+                  </div>
+                ) : events.length === 0 ? (
+                  <div>
+                    <div className="w-full rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+                      You don't have any events yet. Create an event first to request quotes.
+                    </div>
+                    <Link
+                      href="/events/new"
+                      className="mt-2 inline-block text-sm text-primary hover:underline"
+                    >
+                      → Create your first event
+                    </Link>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      id="event_id"
+                      name="event_id"
+                      required
+                      disabled={isPending}
+                      onChange={handleEventChange}
+                      className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">Choose an event...</option>
+                      {events.map((event) => (
+                        <option key={event.id} value={event.id}>
+                          {event.title} - {new Date(event.start_date).toLocaleDateString()} - {event.venue_city || 'TBD'}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Select which event you need this vendor for
+                    </p>
+                  </>
+                )}
               </div>
 
               <div>
@@ -109,7 +151,7 @@ export function QuoteRequestModal({
                   name="service_type"
                   type="text"
                   required
-                  disabled={isPending}
+                  disabled={isPending || events.length === 0}
                   placeholder="e.g., Photography, Catering, Decoration"
                 />
               </div>
@@ -121,8 +163,15 @@ export function QuoteRequestModal({
                   name="event_date"
                   type="date"
                   required
-                  disabled={isPending}
+                  disabled={isPending || events.length === 0}
+                  value={selectedEvent ? selectedEvent.start_date : ''}
+                  readOnly={!!selectedEvent}
                 />
+                {selectedEvent && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Auto-filled from selected event
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -132,9 +181,15 @@ export function QuoteRequestModal({
                     id="guest_count"
                     name="guest_count"
                     type="number"
-                    disabled={isPending}
-                    placeholder="100"
+                    disabled={isPending || events.length === 0}
+                    placeholder={selectedEvent?.capacity || "100"}
+                    defaultValue={selectedEvent?.capacity || ""}
                   />
+                  {selectedEvent?.capacity && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Event capacity: {selectedEvent.capacity}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -142,7 +197,7 @@ export function QuoteRequestModal({
                   <select
                     id="budget_range"
                     name="budget_range"
-                    disabled={isPending}
+                    disabled={isPending || events.length === 0}
                     className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">Select range...</option>
@@ -161,9 +216,16 @@ export function QuoteRequestModal({
                   id="venue_location"
                   name="venue_location"
                   type="text"
-                  disabled={isPending}
+                  disabled={isPending || events.length === 0}
                   placeholder="City or venue name"
+                  value={selectedEvent ? `${selectedEvent.venue_name || ''} ${selectedEvent.venue_city || ''}`.trim() : ''}
+                  readOnly={!!selectedEvent}
                 />
+                {selectedEvent && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Auto-filled from selected event
+                  </p>
+                )}
               </div>
 
               <div>
@@ -172,7 +234,7 @@ export function QuoteRequestModal({
                   id="message"
                   name="message"
                   rows={4}
-                  disabled={isPending}
+                  disabled={isPending || events.length === 0}
                   className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="Tell the vendor about your specific requirements, preferences, or any questions you have..."
                 />
@@ -181,8 +243,8 @@ export function QuoteRequestModal({
               <div className="flex gap-3">
                 <button
                   type="submit"
-                  disabled={isPending}
-                  className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  disabled={isPending || events.length === 0}
+                  className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isPending ? 'Sending...' : 'Send Quote Request'}
                 </button>

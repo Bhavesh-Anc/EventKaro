@@ -100,3 +100,48 @@ export async function updateEventStatus(eventId: string, status: string) {
   revalidatePath(`/events/${eventId}`);
   return { success: true };
 }
+
+export async function getUserEvents() {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  // Get all organizations the user is a member of
+  const { data: memberships } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id);
+
+  if (!memberships || memberships.length === 0) return [];
+
+  const organizationIds = memberships.map(m => m.organization_id);
+
+  // Get all events from these organizations
+  const { data, error } = await supabase
+    .from('events')
+    .select(`
+      id,
+      title,
+      start_date,
+      end_date,
+      venue_name,
+      venue_city,
+      capacity,
+      event_type,
+      organization_id,
+      organizations (
+        name
+      )
+    `)
+    .in('organization_id', organizationIds)
+    .is('deleted_at', null)
+    .order('start_date', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching user events:', error);
+    return [];
+  }
+
+  return data;
+}
