@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
 export async function addGuest(formData: FormData) {
@@ -14,7 +15,7 @@ export async function addGuest(formData: FormData) {
   const groupId = formData.get('guest_group_id') as string || null;
   const plusOneAllowed = formData.get('plus_one_allowed') === 'on';
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('guests')
     .insert({
       event_id: eventId,
@@ -25,16 +26,14 @@ export async function addGuest(formData: FormData) {
       guest_group_id: groupId,
       plus_one_allowed: plusOneAllowed,
       source: 'manual',
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
-    return { error: error.message };
+    console.error('Error adding guest:', error);
   }
 
   revalidatePath(`/events/${eventId}/guests`);
-  return { data };
+  redirect(`/events/${eventId}/guests`);
 }
 
 export async function getEventGuests(eventId: string) {
@@ -104,23 +103,21 @@ export async function createGuestGroup(formData: FormData) {
   const description = formData.get('description') as string || null;
   const groupType = formData.get('group_type') as string;
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('guest_groups')
     .insert({
       event_id: eventId,
       name,
       description,
       group_type: groupType,
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
-    return { error: error.message };
+    console.error('Error creating guest group:', error);
   }
 
   revalidatePath(`/events/${eventId}/guests`);
-  return { data };
+  redirect(`/events/${eventId}/guests`);
 }
 
 export async function getEventGuestGroups(eventId: string) {

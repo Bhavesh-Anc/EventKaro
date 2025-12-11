@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
 // Vendor CRUD Operations
@@ -10,7 +11,7 @@ export async function createVendorProfile(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { error: 'Not authenticated' };
+    redirect('/login');
   }
 
   const businessName = formData.get('business_name') as string;
@@ -44,11 +45,11 @@ export async function createVendorProfile(formData: FormData) {
     .single();
 
   if (error) {
-    return { error: error.message };
+    console.error('Error creating vendor profile:', error);
   }
 
   revalidatePath('/vendors');
-  return { data };
+  redirect(data ? `/vendors/${data.id}` : '/vendors');
 }
 
 export async function getVendorByUserId(userId: string) {
@@ -194,7 +195,7 @@ export async function createQuoteRequest(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { error: 'Not authenticated' };
+    redirect('/login');
   }
 
   const eventId = formData.get('event_id') as string;
@@ -206,7 +207,7 @@ export async function createQuoteRequest(formData: FormData) {
   const budgetRange = formData.get('budget_range') as string || null;
   const message = formData.get('message') as string || null;
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('quote_requests')
     .insert({
       event_id: eventId,
@@ -218,16 +219,14 @@ export async function createQuoteRequest(formData: FormData) {
       venue_location: venueLocation,
       budget_range: budgetRange,
       message,
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
-    return { error: error.message };
+    console.error('Error creating quote request:', error);
   }
 
   revalidatePath(`/events/${eventId}/vendors`);
-  return { data };
+  redirect(`/events/${eventId}/vendors`);
 }
 
 export async function getEventQuoteRequests(eventId: string) {
@@ -334,7 +333,7 @@ export async function createVendorReview(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { error: 'Not authenticated' };
+    redirect('/login');
   }
 
   const vendorId = formData.get('vendor_id') as string;
@@ -349,7 +348,7 @@ export async function createVendorReview(formData: FormData) {
   const reviewText = formData.get('review_text') as string || null;
   const wouldRecommend = formData.get('would_recommend') === 'true';
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('vendor_reviews')
     .insert({
       vendor_id: vendorId,
@@ -364,16 +363,14 @@ export async function createVendorReview(formData: FormData) {
       review_title: reviewTitle,
       review_text: reviewText,
       would_recommend: wouldRecommend,
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
-    return { error: error.message };
+    console.error('Error creating vendor review:', error);
   }
 
   revalidatePath(`/vendors/${vendorId}`);
-  return { data };
+  redirect(`/vendors/${vendorId}`);
 }
 
 export async function getVendorReviews(vendorId: string) {
@@ -501,7 +498,7 @@ export async function createVendorService(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { error: 'Not authenticated' };
+    redirect('/login');
   }
 
   const vendorId = formData.get('vendor_id') as string;
@@ -513,10 +510,10 @@ export async function createVendorService(formData: FormData) {
   // Verify vendor ownership
   const vendor = await getVendorByUserId(user.id);
   if (!vendor || vendor.id !== vendorId) {
-    return { error: 'Unauthorized' };
+    redirect('/vendors');
   }
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('vendor_services')
     .insert({
       vendor_id: vendorId,
@@ -524,17 +521,15 @@ export async function createVendorService(formData: FormData) {
       description,
       price_inr: price,
       unit,
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
-    return { error: error.message };
+    console.error('Error creating vendor service:', error);
   }
 
   revalidatePath(`/vendors/${vendorId}`);
   revalidatePath('/vendor/services');
-  return { data };
+  redirect(`/vendors/${vendorId}`);
 }
 
 export async function updateVendorService(formData: FormData) {
@@ -627,7 +622,7 @@ export async function createVendorPackage(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { error: 'Not authenticated' };
+    redirect('/login');
   }
 
   const vendorId = formData.get('vendor_id') as string;
@@ -644,16 +639,16 @@ export async function createVendorPackage(formData: FormData) {
   try {
     featuresArray = features.split('\n').filter(f => f.trim().length > 0);
   } catch (e) {
-    return { error: 'Invalid features format' };
+    redirect(`/vendors/${vendorId}`);
   }
 
   // Verify vendor ownership
   const vendor = await getVendorByUserId(user.id);
   if (!vendor || vendor.id !== vendorId) {
-    return { error: 'Unauthorized' };
+    redirect('/vendors');
   }
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('vendor_packages')
     .insert({
       vendor_id: vendorId,
@@ -664,17 +659,15 @@ export async function createVendorPackage(formData: FormData) {
       min_guests: minGuests,
       max_guests: maxGuests,
       is_popular: isPopular,
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
-    return { error: error.message };
+    console.error('Error creating vendor package:', error);
   }
 
   revalidatePath(`/vendors/${vendorId}`);
   revalidatePath('/vendor/packages');
-  return { data };
+  redirect(`/vendors/${vendorId}`);
 }
 
 export async function updateVendorPackage(formData: FormData) {
