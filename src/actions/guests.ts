@@ -147,6 +147,8 @@ export async function getGuestStats(eventId: string) {
     notAttending: 0,
     pending: 0,
     maybe: 0,
+    plusOnesAttending: 0,
+    totalExpected: 0,
   };
 
   const stats = {

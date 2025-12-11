@@ -498,7 +498,7 @@ export async function createVendorService(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect('/login');
+    return { error: 'Not authenticated' };
   }
 
   const vendorId = formData.get('vendor_id') as string;
@@ -510,10 +510,10 @@ export async function createVendorService(formData: FormData) {
   // Verify vendor ownership
   const vendor = await getVendorByUserId(user.id);
   if (!vendor || vendor.id !== vendorId) {
-    redirect('/vendors');
+    return { error: 'Unauthorized' };
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('vendor_services')
     .insert({
       vendor_id: vendorId,
@@ -521,15 +521,17 @@ export async function createVendorService(formData: FormData) {
       description,
       price_inr: price,
       unit,
-    });
+    })
+    .select()
+    .single();
 
   if (error) {
-    console.error('Error creating vendor service:', error);
+    return { error: error.message };
   }
 
   revalidatePath(`/vendors/${vendorId}`);
   revalidatePath('/vendor/services');
-  redirect(`/vendors/${vendorId}`);
+  return { data, success: true };
 }
 
 export async function updateVendorService(formData: FormData) {
@@ -622,7 +624,7 @@ export async function createVendorPackage(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect('/login');
+    return { error: 'Not authenticated' };
   }
 
   const vendorId = formData.get('vendor_id') as string;
@@ -639,16 +641,16 @@ export async function createVendorPackage(formData: FormData) {
   try {
     featuresArray = features.split('\n').filter(f => f.trim().length > 0);
   } catch (e) {
-    redirect(`/vendors/${vendorId}`);
+    return { error: 'Invalid features format' };
   }
 
   // Verify vendor ownership
   const vendor = await getVendorByUserId(user.id);
   if (!vendor || vendor.id !== vendorId) {
-    redirect('/vendors');
+    return { error: 'Unauthorized' };
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('vendor_packages')
     .insert({
       vendor_id: vendorId,
@@ -659,15 +661,17 @@ export async function createVendorPackage(formData: FormData) {
       min_guests: minGuests,
       max_guests: maxGuests,
       is_popular: isPopular,
-    });
+    })
+    .select()
+    .single();
 
   if (error) {
-    console.error('Error creating vendor package:', error);
+    return { error: error.message };
   }
 
   revalidatePath(`/vendors/${vendorId}`);
   revalidatePath('/vendor/packages');
-  redirect(`/vendors/${vendorId}`);
+  return { data, success: true };
 }
 
 export async function updateVendorPackage(formData: FormData) {

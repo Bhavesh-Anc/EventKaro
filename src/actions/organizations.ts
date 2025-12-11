@@ -10,7 +10,7 @@ export async function createOrganization(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { error: 'Not authenticated' };
+    redirect('/login');
   }
 
   const name = formData.get('name') as string;
@@ -32,7 +32,7 @@ export async function createOrganization(formData: FormData) {
     .single();
 
   if (orgError) {
-    return { error: orgError.message };
+    console.error('Error creating organization:', orgError);
   }
 
   // Add user as owner
@@ -45,7 +45,7 @@ export async function createOrganization(formData: FormData) {
     });
 
   if (memberError) {
-    return { error: memberError.message };
+    console.error('Error adding member:', memberError);
   }
 
   revalidatePath('/dashboard');

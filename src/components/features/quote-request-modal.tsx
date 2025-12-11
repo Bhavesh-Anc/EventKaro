@@ -36,13 +36,17 @@ export function QuoteRequestModal({
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      const result = await createQuoteRequest(formData);
-      if (result.data) {
+      try {
+        await createQuoteRequest(formData);
+        // If we get here without redirect, show success
         setSuccess(true);
         setTimeout(() => {
           onClose();
           setSuccess(false);
         }, 2000);
+      } catch (error) {
+        // Redirect happened or error occurred
+        console.error('Quote request error:', error);
       }
     });
   };

@@ -10,7 +10,7 @@ export async function createEvent(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { error: 'Not authenticated' };
+    redirect('/login');
   }
 
   const organizationId = formData.get('organization_id') as string;
@@ -48,12 +48,12 @@ export async function createEvent(formData: FormData) {
     .single();
 
   if (eventError) {
-    return { error: eventError.message };
+    console.error('Error creating event:', eventError);
   }
 
   revalidatePath('/dashboard');
   revalidatePath('/events');
-  redirect(`/events/${event.id}`);
+  redirect(event ? `/events/${event.id}` : '/dashboard');
 }
 
 export async function getOrganizationEvents(organizationId: string) {
