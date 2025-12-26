@@ -310,7 +310,7 @@ export async function createChecklistFromTemplate(eventId: string, templateId: s
     .insert(items);
 
   if (itemsError) {
-    console.error('Error creating checklist items:', error);
+    console.error('Error creating checklist items:', itemsError);
     throw new Error('Failed to create checklist items');
   }
 
