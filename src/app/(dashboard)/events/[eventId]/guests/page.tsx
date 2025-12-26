@@ -2,6 +2,7 @@ import { getEvent } from '@/actions/events';
 import { getEventGuests, getGuestStats } from '@/actions/guests';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import GuestInvitationActions from '@/components/features/guest-invitation-actions';
 
 export default async function GuestsPage({
   params,
@@ -132,6 +133,7 @@ export default async function GuestsPage({
                   <th className="px-6 py-3 text-left text-sm font-medium">RSVP</th>
                   <th className="px-6 py-3 text-left text-sm font-medium">Plus One</th>
                   <th className="px-6 py-3 text-left text-sm font-medium">Dietary</th>
+                  <th className="px-6 py-3 text-left text-sm font-medium">Invitation</th>
                   <th className="px-6 py-3 text-left text-sm font-medium">Actions</th>
                 </tr>
               </thead>
@@ -210,6 +212,15 @@ export default async function GuestsPage({
                       ) : (
                         <span className="text-sm text-gray-400">None</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <GuestInvitationActions
+                        invitationToken={guest.invitation_token}
+                        invitationExpiresAt={guest.invitation_expires_at}
+                        guestName={`${guest.first_name} ${guest.last_name}`}
+                        guestEmail={guest.email}
+                        guestPhone={guest.phone}
+                      />
                     </td>
                     <td className="px-6 py-4">
                       <Link

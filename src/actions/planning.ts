@@ -12,7 +12,7 @@ export async function getEventGuests(eventId: string) {
   const supabase = await createClient();
 
   const { data, error } = await supabase
-    .from('event_guests')
+    .from('guests')
     .select('*')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false });
@@ -41,7 +41,7 @@ export async function addEventGuest(formData: FormData) {
   const plusOneAllowed = formData.get('plus_one_allowed') === 'true';
 
   const { error } = await supabase
-    .from('event_guests')
+    .from('guests')
     .insert({
       event_id: eventId,
       first_name: firstName,
@@ -72,7 +72,7 @@ export async function updateGuest(guestId: string, formData: FormData) {
   const rsvpStatus = formData.get('rsvp_status') as string;
 
   const { error } = await supabase
-    .from('event_guests')
+    .from('guests')
     .update({
       first_name: firstName,
       last_name: lastName,
@@ -96,7 +96,7 @@ export async function deleteGuest(guestId: string) {
   const supabase = await createClient();
 
   const { error } = await supabase
-    .from('event_guests')
+    .from('guests')
     .delete()
     .eq('id', guestId);
 
@@ -112,7 +112,7 @@ export async function checkInGuest(guestId: string) {
   const supabase = await createClient();
 
   const { error } = await supabase
-    .from('event_guests')
+    .from('guests')
     .update({
       checked_in: true,
       checked_in_at: new Date().toISOString(),
@@ -131,7 +131,7 @@ export async function getRSVPStats(eventId: string) {
   const supabase = await createClient();
 
   const { data, error } = await supabase
-    .from('event_guests')
+    .from('guests')
     .select('rsvp_status')
     .eq('event_id', eventId);
 
@@ -509,7 +509,7 @@ export async function getInvitationByToken(token: string) {
     .select(`
       *,
       event:events(id, title, start_date, end_date, location, event_type),
-      guest:event_guests(id, first_name, last_name, email, phone)
+      guest:guests(id, first_name, last_name, email, phone)
     `)
     .eq('invitation_token', token)
     .eq('is_active', true)
@@ -534,7 +534,7 @@ export async function getGuestByInvitationToken(token: string) {
   const supabase = await createClient();
 
   const { data, error } = await supabase
-    .from('event_guests')
+    .from('guests')
     .select(`
       *,
       event:events(id, title, start_date, end_date, location, event_type, organization_id)
@@ -595,7 +595,7 @@ export async function submitGuestRSVP(formData: FormData) {
 
   // Check if this is an update to existing guest or new guest
   const { data: existingGuest } = await supabase
-    .from('event_guests')
+    .from('guests')
     .select('id, event_id')
     .eq('invitation_token', invitationToken)
     .single();
@@ -603,7 +603,7 @@ export async function submitGuestRSVP(formData: FormData) {
   if (existingGuest) {
     // Update existing guest
     const { error } = await supabase
-      .from('event_guests')
+      .from('guests')
       .update({
         first_name: firstName,
         last_name: lastName,
@@ -671,7 +671,7 @@ export async function sendGuestInvitation(invitationId: string, method: 'email' 
     .select(`
       *,
       event:events(id, title, start_date, location),
-      guest:event_guests(first_name, last_name)
+      guest:guests(first_name, last_name)
     `)
     .eq('id', invitationId)
     .single();
@@ -709,7 +709,7 @@ export async function getEventInvitations(eventId: string) {
     .from('guest_invitations')
     .select(`
       *,
-      guest:event_guests(id, first_name, last_name, email, phone, rsvp_status)
+      guest:guests(id, first_name, last_name, email, phone, rsvp_status)
     `)
     .eq('event_id', eventId)
     .order('created_at', { ascending: false });
