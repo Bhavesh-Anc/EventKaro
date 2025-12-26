@@ -3,6 +3,7 @@ import { getOrganizationEvents } from '@/actions/events';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { formatINR } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default async function EventsPage() {
   const organizations = await getUserOrganizations();
@@ -32,17 +33,16 @@ export default async function EventsPage() {
       </div>
 
       {events.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <h3 className="text-lg font-semibold mb-2">No events yet</h3>
-          <p className="text-muted-foreground mb-6">
-            Get started by creating your first event
-          </p>
-          <Link
-            href="/events/new"
-            className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Create Your First Event
-          </Link>
+        <div className="rounded-lg border border-dashed">
+          <EmptyState
+            icon="🎉"
+            title="No events yet"
+            description="Get started by creating your first event"
+            action={{
+              label: "Create Your First Event",
+              href: "/events/new"
+            }}
+          />
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

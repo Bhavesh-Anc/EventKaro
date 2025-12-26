@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { submitGuestRSVP } from '@/actions/planning';
+import { ErrorMessage } from '@/components/ui/error-message';
 
 interface GuestData {
   id: string;
@@ -47,6 +48,7 @@ interface Props {
 export default function PublicGuestRSVPForm({ guest, invitationToken }: Props) {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [rsvpStatus, setRsvpStatus] = useState(guest.rsvp_status || 'pending');
   const [numberOfGuests, setNumberOfGuests] = useState(guest.number_of_guests || 1);
   const [showArrival, setShowArrival] = useState(!!guest.arrival_date);
@@ -56,6 +58,7 @@ export default function PublicGuestRSVPForm({ guest, invitationToken }: Props) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     try {
       const formData = new FormData(e.currentTarget);
@@ -65,7 +68,7 @@ export default function PublicGuestRSVPForm({ guest, invitationToken }: Props) {
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting RSVP:', error);
-      alert('Failed to submit RSVP. Please try again.');
+      setError('Failed to submit RSVP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -103,6 +106,20 @@ export default function PublicGuestRSVPForm({ guest, invitationToken }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-8">
+      {/* Error Message */}
+      {error && (
+        <div className="mb-6">
+          <ErrorMessage
+            message={error}
+            retry={() => {
+              setError(null);
+              const form = document.querySelector('form');
+              if (form) form.requestSubmit();
+            }}
+          />
+        </div>
+      )}
+
       {/* RSVP Status */}
       <div className="mb-8">
         <label className="block text-lg font-semibold text-gray-900 mb-4">

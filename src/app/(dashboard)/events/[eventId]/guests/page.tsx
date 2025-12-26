@@ -3,6 +3,7 @@ import { getEventGuests, getGuestStats } from '@/actions/guests';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import GuestInvitationActions from '@/components/features/guest-invitation-actions';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default async function GuestsPage({
   params,
@@ -109,17 +110,16 @@ export default async function GuestsPage({
 
       {/* Guest List */}
       {guests.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <h3 className="text-lg font-semibold mb-2">No guests yet</h3>
-          <p className="text-muted-foreground mb-6">
-            Start adding guests to your event
-          </p>
-          <Link
-            href={`/events/${eventId}/guests/new`}
-            className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Add First Guest
-          </Link>
+        <div className="rounded-lg border border-dashed">
+          <EmptyState
+            icon="👥"
+            title="No guests yet"
+            description="Start adding guests to your event"
+            action={{
+              label: "Add First Guest",
+              href: `/events/${eventId}/guests/new`
+            }}
+          />
         </div>
       ) : (
         <div className="rounded-lg border">

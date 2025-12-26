@@ -1,6 +1,7 @@
 import { getEvent } from '@/actions/events';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default async function EventVendorsPage({
   params,
@@ -67,19 +68,15 @@ export default async function EventVendorsPage({
       <div className="rounded-lg border p-6">
         <h3 className="text-lg font-semibold mb-4">Booked Vendors</h3>
         {vendorBookings.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">🏢</div>
-            <h4 className="text-lg font-semibold mb-2">No vendors booked yet</h4>
-            <p className="text-muted-foreground mb-6">
-              Browse the vendor marketplace to find and book vendors for your event
-            </p>
-            <Link
-              href="/vendors"
-              className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Browse Vendors
-            </Link>
-          </div>
+          <EmptyState
+            icon="🏢"
+            title="No vendors booked yet"
+            description="Browse the vendor marketplace to find and book vendors for your event"
+            action={{
+              label: "Browse Vendors",
+              href: "/vendors"
+            }}
+          />
         ) : (
           <div className="space-y-4">
             {vendorBookings.map((booking: any) => (
@@ -112,9 +109,11 @@ export default async function EventVendorsPage({
       <div className="rounded-lg border p-6">
         <h3 className="text-lg font-semibold mb-4">Pending Quote Requests</h3>
         {pendingQuotes.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No pending quote requests</p>
-          </div>
+          <EmptyState
+            icon="📋"
+            title="No pending quote requests"
+            description="Quote requests will appear here when you request quotes from vendors"
+          />
         ) : (
           <div className="space-y-4">
             {pendingQuotes.map((quote: any) => (
