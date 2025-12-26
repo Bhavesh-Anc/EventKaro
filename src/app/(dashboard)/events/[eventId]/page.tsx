@@ -139,7 +139,7 @@ export default async function EventDetailPage({
 
       <div className="rounded-lg border p-6">
         <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-6">
           <Link
             href={`/events/${eventId}/tickets`}
             className="rounded-md border p-4 text-center hover:bg-muted block"
@@ -153,6 +153,13 @@ export default async function EventDetailPage({
           >
             <div className="text-2xl mb-2">👥</div>
             <h4 className="font-medium">Guest List</h4>
+          </Link>
+          <Link
+            href={`/events/${eventId}/vendors`}
+            className="rounded-md border p-4 text-center hover:bg-muted block"
+          >
+            <div className="text-2xl mb-2">🏢</div>
+            <h4 className="font-medium">Vendors</h4>
           </Link>
           <Link
             href={`/events/${eventId}/accommodations`}
