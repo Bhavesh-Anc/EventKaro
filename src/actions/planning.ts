@@ -537,7 +537,7 @@ export async function getGuestByInvitationToken(token: string) {
     .from('guests')
     .select(`
       *,
-      event:events(id, title, start_date, end_date, location, event_type, organization_id)
+      event:events(id, title, start_date, end_date, venue_name, venue_city, event_type, organization_id)
     `)
     .eq('invitation_token', token)
     .gt('invitation_expires_at', new Date().toISOString())
