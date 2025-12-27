@@ -220,6 +220,15 @@ export default async function GuestsPage({
                         guestName={`${guest.first_name} ${guest.last_name}`}
                         guestEmail={guest.email}
                         guestPhone={guest.phone}
+                        eventTitle={event.title}
+                        eventDate={new Date(event.start_date).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        eventLocation={event.venue_city || event.venue_name}
                       />
                     </td>
                     <td className="px-6 py-4">
