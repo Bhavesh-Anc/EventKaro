@@ -757,3 +757,541 @@ export async function deleteVendorPackage(packageId: string, vendorId: string) {
   revalidatePath('/vendor/packages');
   return { success: true };
 }
+
+// Service Detail Operations (for detail pages)
+
+/**
+ * Get full service details with vendor info and related services
+ */
+export async function getServiceDetails(serviceId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('vendor_services')
+    .select(`
+      *,
+      vendors (
+        id,
+        business_name,
+        business_type,
+        logo_url,
+        city,
+        state,
+        average_rating,
+        total_reviews,
+        phone,
+        email,
+        website,
+        whatsapp_number
+      )
+    `)
+    .eq('id', serviceId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching service details:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Get related services from the same vendor
+ */
+export async function getRelatedServices(vendorId: string, serviceId: string, limit: number = 4) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('vendor_services')
+    .select('*')
+    .eq('vendor_id', vendorId)
+    .eq('is_available', true)
+    .neq('id', serviceId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching related services:', error);
+    return [];
+  }
+
+  return data;
+}
+
+// Package Detail Operations (for detail pages)
+
+/**
+ * Get full package details with vendor info and related packages
+ */
+export async function getPackageDetails(packageId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('vendor_packages')
+    .select(`
+      *,
+      vendors (
+        id,
+        business_name,
+        business_type,
+        logo_url,
+        city,
+        state,
+        average_rating,
+        total_reviews,
+        phone,
+        email,
+        website,
+        whatsapp_number
+      )
+    `)
+    .eq('id', packageId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching package details:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Get related packages from the same vendor
+ */
+export async function getRelatedPackages(vendorId: string, packageId: string, limit: number = 4) {
+  const supabase = await createClient();
+
+  const { data, error} = await supabase
+    .from('vendor_packages')
+    .select('*')
+    .eq('vendor_id', vendorId)
+    .neq('id', packageId)
+    .order('is_popular', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching related packages:', error);
+    return [];
+  }
+
+  return data;
+}
+
+// Review Operations
+
+/**
+ * Create a vendor review
+ */
+export async function createVendorReview(formData: FormData) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/login');
+  }
+
+  const vendorId = formData.get('vendor_id') as string;
+  const bookingId = formData.get('booking_id') as string | null;
+  const eventId = formData.get('event_id') as string | null;
+  const overallRating = parseInt(formData.get('overall_rating') as string);
+  const qualityRating = parseInt(formData.get('quality_rating') as string) || 0;
+  const professionalismRating = parseInt(formData.get('professionalism_rating') as string) || 0;
+  const valueRating = parseInt(formData.get('value_rating') as string) || 0;
+  const communicationRating = parseInt(formData.get('communication_rating') as string) || 0;
+  const reviewTitle = formData.get('review_title') as string | null;
+  const reviewText = formData.get('review_text') as string | null;
+  const wouldRecommend = formData.get('would_recommend') === 'true';
+
+  const { error } = await supabase
+    .from('vendor_reviews')
+    .insert({
+      vendor_id: vendorId,
+      reviewer_id: user.id,
+      booking_id: bookingId,
+      event_id: eventId,
+      overall_rating: overallRating,
+      quality_rating: qualityRating,
+      professionalism_rating: professionalismRating,
+      value_rating: valueRating,
+      communication_rating: communicationRating,
+      review_title: reviewTitle,
+      review_text: reviewText,
+      would_recommend: wouldRecommend,
+    });
+
+  if (error) {
+    console.error('Error creating vendor review:', error);
+    throw new Error('Failed to submit review');
+  }
+
+  revalidatePath(`/vendors/${vendorId}`);
+  if (eventId) {
+    redirect(`/events/${eventId}/bookings`);
+  } else {
+    redirect(`/vendors/${vendorId}`);
+  }
+}
+
+/**
+ * Get all reviews for a vendor
+ */
+export async function getVendorReviews(vendorId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('vendor_reviews')
+    .select(`
+      *,
+      reviewer:profiles(full_name, avatar_url)
+    `)
+    .eq('vendor_id', vendorId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching vendor reviews:', error);
+    return [];
+  }
+
+  return data;
+}
+
+/**
+ * Check if user can review a vendor (has completed booking)
+ */
+export async function canReviewVendor(vendorId: string, userId: string) {
+  const supabase = await createClient();
+
+  // Check if user has a completed booking with this vendor
+  const { data, error } = await supabase
+    .from('vendor_bookings')
+    .select('id')
+    .eq('vendor_id', vendorId)
+    .eq('organizer_id', userId)
+    .eq('status', 'completed')
+    .limit(1);
+
+  if (error || !data || data.length === 0) {
+    return false;
+  }
+
+  // Check if user already reviewed this vendor
+  const { data: existingReview } = await supabase
+    .from('vendor_reviews')
+    .select('id')
+    .eq('vendor_id', vendorId)
+    .eq('reviewer_id', userId)
+    .limit(1);
+
+  return !existingReview || existingReview.length === 0;
+}
+
+// Service Category Operations
+
+/**
+ * Get all active service categories
+ */
+export async function getServiceCategories() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('service_categories')
+    .select('*')
+    .eq('is_active', true)
+    .is('parent_id', null)
+    .order('display_order', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching service categories:', error);
+    return [];
+  }
+
+  return data;
+}
+
+/**
+ * Get sub-categories for a parent category
+ */
+export async function getSubCategories(parentId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('service_categories')
+    .select('*')
+    .eq('is_active', true)
+    .eq('parent_id', parentId)
+    .order('display_order', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching sub-categories:', error);
+    return [];
+  }
+
+  return data;
+}
+
+/**
+ * Get vendors by category
+ */
+export async function getVendorsByCategory(categorySlug: string) {
+  const supabase = await createClient();
+
+  // First get the category
+  const { data: category } = await supabase
+    .from('service_categories')
+    .select('id')
+    .eq('slug', categorySlug)
+    .single();
+
+  if (!category) {
+    return [];
+  }
+
+  // Get vendors in this category
+  const { data, error } = await supabase
+    .from('vendor_categories')
+    .select(`
+      vendor:vendors(*)
+    `)
+    .eq('category_id', category.id);
+
+  if (error) {
+    console.error('Error fetching vendors by category:', error);
+    return [];
+  }
+
+  return data.map((vc: any) => vc.vendor).filter(Boolean);
+}
+
+/**
+ * Assign categories to vendor
+ */
+export async function assignVendorCategories(vendorId: string, categoryIds: string[]) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: 'Not authenticated' };
+  }
+
+  // Verify user owns this vendor
+  const { data: vendor } = await supabase
+    .from('vendors')
+    .select('user_id')
+    .eq('id', vendorId)
+    .single();
+
+  if (!vendor || vendor.user_id !== user.id) {
+    return { error: 'Unauthorized' };
+  }
+
+  // Delete existing categories
+  await supabase
+    .from('vendor_categories')
+    .delete()
+    .eq('vendor_id', vendorId);
+
+  // Insert new categories
+  const categoryRecords = categoryIds.map((categoryId, index) => ({
+    vendor_id: vendorId,
+    category_id: categoryId,
+    is_primary: index === 0,
+  }));
+
+  const { error } = await supabase
+    .from('vendor_categories')
+    .insert(categoryRecords);
+
+  if (error) {
+    console.error('Error assigning vendor categories:', error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/vendors/${vendorId}`);
+  return { success: true };
+}
+
+// ============================================================================
+// VENDOR BOOKINGS
+// ============================================================================
+
+/**
+ * Get all vendor bookings for an event
+ */
+export async function getEventVendorBookings(eventId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('vendor_bookings')
+    .select(`
+      *,
+      vendor:vendors(id, business_name, business_type, city, phone, email),
+      quote_request:quote_requests(*)
+    `)
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching event vendor bookings:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Get pending quote requests for an event
+ */
+export async function getEventPendingQuotes(eventId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('quote_requests')
+    .select(`
+      *,
+      vendor:vendors(id, business_name, business_type, city, phone, email)
+    `)
+    .eq('event_id', eventId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching event pending quotes:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Create a vendor booking
+ */
+export async function createVendorBooking(bookingData: {
+  eventId: string;
+  vendorId: string;
+  quoteRequestId?: string;
+  amount: number;
+  bookingDate: string;
+  notes?: string;
+}) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: 'Not authenticated' };
+  }
+
+  const { data, error } = await supabase
+    .from('vendor_bookings')
+    .insert({
+      event_id: bookingData.eventId,
+      vendor_id: bookingData.vendorId,
+      quote_request_id: bookingData.quoteRequestId,
+      organizer_id: user.id,
+      amount_inr: bookingData.amount,
+      booking_date: bookingData.bookingDate,
+      notes: bookingData.notes,
+      status: 'pending',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating vendor booking:', error);
+    return { error: error.message };
+  }
+
+  // Update quote request status if exists
+  if (bookingData.quoteRequestId) {
+    await supabase
+      .from('quote_requests')
+      .update({ status: 'accepted' })
+      .eq('id', bookingData.quoteRequestId);
+  }
+
+  revalidatePath(`/events/${bookingData.eventId}/vendors`);
+  return { success: true, booking: data };
+}
+
+/**
+ * Get vendor booking details
+ */
+export async function getVendorBooking(bookingId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('vendor_bookings')
+    .select(`
+      *,
+      vendor:vendors(*),
+      event:events(*),
+      quote_request:quote_requests(*)
+    `)
+    .eq('id', bookingId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching vendor booking:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Update vendor booking status
+ */
+export async function updateVendorBookingStatus(bookingId: string, status: string) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: 'Not authenticated' };
+  }
+
+  const { data, error } = await supabase
+    .from('vendor_bookings')
+    .update({ status })
+    .eq('id', bookingId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating vendor booking status:', error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/events/${data.event_id}/vendors`);
+  return { success: true, booking: data };
+}
+
+/**
+ * Get vendor bookings stats for an event
+ */
+export async function getEventVendorStats(eventId: string) {
+  const supabase = await createClient();
+
+  const { data: bookings } = await supabase
+    .from('vendor_bookings')
+    .select('amount_inr, status')
+    .eq('event_id', eventId);
+
+  const { data: quotes } = await supabase
+    .from('quote_requests')
+    .select('status')
+    .eq('event_id', eventId);
+
+  const totalVendors = bookings?.length || 0;
+  const confirmedVendors = bookings?.filter(b => b.status === 'confirmed').length || 0;
+  const pendingQuotes = quotes?.filter(q => q.status === 'pending').length || 0;
+  const totalCost = bookings?.reduce((sum, b) => sum + (b.amount_inr || 0), 0) || 0;
+
+  return {
+    totalVendors,
+    confirmedVendors,
+    pendingQuotes,
+    totalCost,
+  };
+}

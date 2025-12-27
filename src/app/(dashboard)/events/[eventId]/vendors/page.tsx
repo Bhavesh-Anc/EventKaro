@@ -1,4 +1,5 @@
 import { getEvent } from '@/actions/events';
+import { getEventVendorBookings, getEventPendingQuotes, getEventVendorStats } from '@/actions/vendors';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -15,9 +16,10 @@ export default async function EventVendorsPage({
     redirect('/events');
   }
 
-  // TODO: Fetch actual vendor bookings and quotes from database
-  const vendorBookings: any[] = [];
-  const pendingQuotes: any[] = [];
+  // Fetch real vendor data
+  const vendorBookings = await getEventVendorBookings(eventId);
+  const pendingQuotes = await getEventPendingQuotes(eventId);
+  const stats = await getEventVendorStats(eventId);
 
   return (
     <div className="space-y-8">
@@ -46,21 +48,21 @@ export default async function EventVendorsPage({
       <div className="grid gap-6 md:grid-cols-4">
         <div className="rounded-lg border p-6">
           <h3 className="text-sm font-medium text-muted-foreground">Total Vendors</h3>
-          <p className="mt-2 text-3xl font-bold">{vendorBookings.length}</p>
+          <p className="mt-2 text-3xl font-bold">{stats.totalVendors}</p>
         </div>
         <div className="rounded-lg border p-6 bg-yellow-50">
           <h3 className="text-sm font-medium text-yellow-700">Pending Quotes</h3>
-          <p className="mt-2 text-3xl font-bold text-yellow-700">{pendingQuotes.length}</p>
+          <p className="mt-2 text-3xl font-bold text-yellow-700">{stats.pendingQuotes}</p>
         </div>
         <div className="rounded-lg border p-6 bg-green-50">
           <h3 className="text-sm font-medium text-green-700">Confirmed</h3>
-          <p className="mt-2 text-3xl font-bold text-green-700">
-            {vendorBookings.filter((b: any) => b.status === 'confirmed').length}
-          </p>
+          <p className="mt-2 text-3xl font-bold text-green-700">{stats.confirmedVendors}</p>
         </div>
         <div className="rounded-lg border p-6 bg-blue-50">
           <h3 className="text-sm font-medium text-blue-700">Total Cost</h3>
-          <p className="mt-2 text-3xl font-bold text-blue-700">₹0</p>
+          <p className="mt-2 text-3xl font-bold text-blue-700">
+            ₹{stats.totalCost.toLocaleString('en-IN')}
+          </p>
         </div>
       </div>
 
@@ -80,15 +82,26 @@ export default async function EventVendorsPage({
         ) : (
           <div className="space-y-4">
             {vendorBookings.map((booking: any) => (
-              <div key={booking.id} className="border rounded-lg p-4">
+              <div key={booking.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">{booking.vendor_name}</h4>
-                    <p className="text-sm text-muted-foreground">{booking.service_type}</p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <h4 className="font-medium text-lg">{booking.vendor?.business_name}</h4>
+                      <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                        {booking.vendor?.business_type}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground space-y-1">
+                      <p>📍 {booking.vendor?.city}</p>
+                      {booking.notes && <p className="italic">"{booking.notes}"</p>}
+                      <p className="text-xs">Booked: {new Date(booking.created_at).toLocaleDateString('en-IN')}</p>
+                    </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">₹{booking.amount?.toLocaleString()}</p>
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                    <p className="text-2xl font-bold text-primary">
+                      ₹{booking.amount_inr?.toLocaleString('en-IN')}
+                    </p>
+                    <span className={`inline-flex mt-2 rounded-full px-3 py-1 text-xs font-medium ${
                       booking.status === 'confirmed'
                         ? 'bg-green-100 text-green-800'
                         : booking.status === 'pending'
@@ -117,15 +130,23 @@ export default async function EventVendorsPage({
         ) : (
           <div className="space-y-4">
             {pendingQuotes.map((quote: any) => (
-              <div key={quote.id} className="border rounded-lg p-4">
+              <div key={quote.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">{quote.vendor_name}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Requested {new Date(quote.created_at).toLocaleDateString()}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <h4 className="font-medium">{quote.vendor?.business_name}</h4>
+                      <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700">
+                        {quote.vendor?.business_type}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      📍 {quote.vendor?.city} • Requested {new Date(quote.created_at).toLocaleDateString('en-IN')}
                     </p>
+                    {quote.message && (
+                      <p className="text-sm mt-2 text-gray-700 italic">"{quote.message}"</p>
+                    )}
                   </div>
-                  <span className="inline-flex rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">
+                  <span className="inline-flex rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-800">
                     Waiting for Response
                   </span>
                 </div>
