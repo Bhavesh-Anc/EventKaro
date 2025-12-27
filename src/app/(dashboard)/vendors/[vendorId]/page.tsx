@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { FavoriteButton } from '@/components/features/favorite-button';
 import { QuoteRequestButton } from '@/components/features/quote-request-button';
+import { ReviewsList } from '@/components/features/reviews-list';
 
 const businessTypeLabels: Record<string, string> = {
   caterer: 'Caterer',
@@ -200,46 +201,11 @@ export default async function VendorProfilePage({
 
           {/* Reviews */}
           <div className="rounded-lg border p-6">
-            <h2 className="text-2xl font-bold mb-4">Reviews ({reviews.length})</h2>
-            {reviews.length === 0 ? (
-              <p className="text-muted-foreground">No reviews yet. Be the first to review!</p>
-            ) : (
-              <div className="space-y-4">
-                {reviews.slice(0, 5).map((review: any) => (
-                  <div key={review.id} className="border-b pb-4 last:border-0">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="font-medium">{review.reviewer?.full_name || 'Anonymous'}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-yellow-600">
-                            {'⭐'.repeat(review.overall_rating)}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(review.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                      {review.would_recommend && (
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                          Recommended
-                        </span>
-                      )}
-                    </div>
-                    {review.review_title && (
-                      <h4 className="font-semibold mb-1">{review.review_title}</h4>
-                    )}
-                    {review.review_text && (
-                      <p className="text-sm text-muted-foreground">{review.review_text}</p>
-                    )}
-                  </div>
-                ))}
-                {reviews.length > 5 && (
-                  <p className="text-sm text-primary text-center pt-2">
-                    + {reviews.length - 5} more reviews
-                  </p>
-                )}
-              </div>
-            )}
+            <ReviewsList
+              reviews={reviews}
+              averageRating={vendor.average_rating}
+              totalReviews={vendor.total_reviews}
+            />
           </div>
         </div>
 

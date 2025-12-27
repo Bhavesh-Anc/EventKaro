@@ -11,6 +11,12 @@ export default async function VendorsPage({
     city?: string;
     price?: string;
     search?: string;
+    rating?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    sort?: string;
+    verified?: string;
+    available?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -44,6 +50,53 @@ export default async function VendorsPage({
         v.description?.toLowerCase().includes(params.search!.toLowerCase())
     );
   }
+
+  // Rating filter
+  if (params.rating) {
+    const minRating = parseFloat(params.rating);
+    filteredVendors = filteredVendors.filter(
+      (v) => (v.average_rating || 0) >= minRating
+    );
+  }
+
+  // Custom price range filter
+  if (params.minPrice) {
+    const minPrice = parseInt(params.minPrice) * 100; // Convert to paise
+    filteredVendors = filteredVendors.filter(
+      (v) => !v.min_price_inr || v.min_price_inr >= minPrice
+    );
+  }
+
+  if (params.maxPrice) {
+    const maxPrice = parseInt(params.maxPrice) * 100; // Convert to paise
+    filteredVendors = filteredVendors.filter(
+      (v) => !v.max_price_inr || v.max_price_inr <= maxPrice
+    );
+  }
+
+  // Verified filter
+  if (params.verified === 'true') {
+    filteredVendors = filteredVendors.filter((v) => v.is_verified);
+  }
+
+  // Sort vendors
+  const sortBy = params.sort || 'rating';
+  filteredVendors.sort((a, b) => {
+    switch (sortBy) {
+      case 'rating':
+        return (b.average_rating || 0) - (a.average_rating || 0);
+      case 'reviews':
+        return (b.total_reviews || 0) - (a.total_reviews || 0);
+      case 'price_low':
+        return (a.min_price_inr || 0) - (b.min_price_inr || 0);
+      case 'price_high':
+        return (b.max_price_inr || 0) - (a.max_price_inr || 0);
+      case 'popular':
+        return (b.total_bookings || 0) - (a.total_bookings || 0);
+      default:
+        return (b.average_rating || 0) - (a.average_rating || 0);
+    }
+  });
 
   // Get unique cities for filter
   const cities = [...new Set(vendors.map((v) => v.city).filter(Boolean))];
