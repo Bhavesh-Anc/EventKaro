@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { FavoriteButton } from '@/components/features/favorite-button';
 import { QuoteRequestButton } from '@/components/features/quote-request-button';
-import { ReviewsList } from '@/components/features/reviews-list';
 
 const businessTypeLabels: Record<string, string> = {
   caterer: 'Caterer',
@@ -201,11 +200,63 @@ export default async function VendorProfilePage({
 
           {/* Reviews */}
           <div className="rounded-lg border p-6">
-            <ReviewsList
-              reviews={reviews}
-              averageRating={vendor.average_rating}
-              totalReviews={vendor.total_reviews}
-            />
+            <h2 className="text-2xl font-bold mb-4">Reviews & Ratings</h2>
+            {vendor.average_rating > 0 && (
+              <div className="flex items-center gap-4 mb-6">
+                <div className="text-4xl font-bold text-yellow-600">
+                  {vendor.average_rating.toFixed(1)}
+                </div>
+                <div>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className={star <= vendor.average_rating ? 'text-yellow-500' : 'text-gray-300'}
+                      >
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Based on {vendor.total_reviews} review{vendor.total_reviews !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {reviews.length > 0 ? (
+              <div className="space-y-4">
+                {reviews.map((review: any) => (
+                  <div key={review.id} className="border-t pt-4 first:border-t-0 first:pt-0">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-medium">{review.organizer_name || 'Anonymous'}</p>
+                        <div className="flex gap-1 mt-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <span
+                              key={star}
+                              className={star <= review.rating ? 'text-yellow-500 text-sm' : 'text-gray-300 text-sm'}
+                            >
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(review.created_at).toLocaleDateString('en-IN')}
+                      </p>
+                    </div>
+                    {review.review_text && (
+                      <p className="text-sm text-muted-foreground mt-2">{review.review_text}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">
+                No reviews yet. Be the first to review this vendor!
+              </p>
+            )}
           </div>
         </div>
 
