@@ -1,31 +1,57 @@
-import { getUser } from '@/actions/auth';
-import { getUserOrganizations } from '@/actions/organizations';
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { UserPlus, Search, Filter, Download } from 'lucide-react';
+'use client';
 
-export default async function GuestsPage() {
-  const user = await getUser();
-  const organizations = await getUserOrganizations();
+import { useState, useEffect } from 'react';
+import { Users, List, Truck, Plus, Filter, Search } from 'lucide-react';
+import { FamilyCard, type FamilyCardData } from '@/components/features/family-card';
+import { FamilyDetailDrawer, type FamilyMember, type RSVPHistoryEntry } from '@/components/features/family-detail-drawer';
+import { IndividualsView, type IndividualGuest } from '@/components/features/individuals-view';
+import { LogisticsView, type LogisticsGuest, type HotelAssignment, type PickupAssignment } from '@/components/features/logistics-view';
 
-  if (organizations.length === 0) {
-    redirect('/organizations/new');
-  }
+type ViewMode = 'families' | 'individuals' | 'logistics';
+type FilterMode = 'all' | 'pending' | 'outstation' | 'vip' | 'no-hotel' | 'no-pickup';
 
-  const currentOrg = organizations[0];
-  const supabase = await createClient();
+export default function GuestsPage() {
+  const [viewMode, setViewMode] = useState<ViewMode>('families');
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch all guests for this organization
-  const { data: guests, count } = await supabase
-    .from('guests')
-    .select('*', { count: 'exact' })
-    .eq('organization_id', currentOrg.id)
-    .order('created_at', { ascending: false });
+  // TODO: Fetch real data from Supabase
+  // For now, using placeholder data structure
+  const mockFamilies: FamilyCardData[] = [];
+  const mockIndividuals: IndividualGuest[] = [];
+  const mockLogistics = {
+    hotelAssignments: [] as HotelAssignment[],
+    pickupAssignments: [] as PickupAssignment[],
+    guestsNeedingHotel: [] as LogisticsGuest[],
+    guestsNeedingPickup: [] as LogisticsGuest[],
+  };
 
-  const confirmedGuests = guests?.filter((g) => g.rsvp_status === 'confirmed').length || 0;
-  const pendingGuests = guests?.filter((g) => g.rsvp_status === 'pending').length || 0;
-  const declinedGuests = guests?.filter((g) => g.rsvp_status === 'declined').length || 0;
+  const selectedFamily = mockFamilies.find((f) => f.id === selectedFamilyId);
+  const mockMembers: FamilyMember[] = [];
+  const mockRSVPHistory: RSVPHistoryEntry[] = [];
+  const mockCostImpact = {
+    catering: 0,
+    rooms: 0,
+    transport: 0,
+    total: 0,
+  };
+
+  // Filter families based on filter mode
+  const filteredFamilies = mockFamilies.filter((family) => {
+    if (filterMode === 'pending' && family.members_pending === 0) return false;
+    if (filterMode === 'outstation' && !family.is_outstation) return false;
+    if (filterMode === 'vip' && !family.is_vip) return false;
+    if (filterMode === 'no-hotel' && family.rooms_allocated >= family.rooms_required) return false;
+    if (filterMode === 'no-pickup' && (family.pickup_assigned || !family.pickup_required)) return false;
+
+    if (searchQuery) {
+      return family.family_name.toLowerCase().includes(searchQuery.toLowerCase());
+    }
+
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -33,125 +59,207 @@ export default async function GuestsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Guest Management</h1>
-          <p className="text-gray-600 mt-1">Manage all your wedding guests</p>
+          <p className="text-gray-600 mt-1">
+            Family-aware tracking • RSVP management • Logistics coordination
+          </p>
         </div>
-        <Link
-          href="/events"
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-medium hover:from-rose-800 hover:to-rose-950 flex items-center gap-2"
+        <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-semibold hover:from-rose-800 hover:to-rose-950 flex items-center gap-2 transition-all">
+          <Plus className="h-5 w-5" />
+          Add Family
+        </button>
+      </div>
+
+      {/* View Mode Toggle */}
+      <div className="flex items-center gap-3 p-2 bg-gray-100 rounded-xl w-fit">
+        <button
+          onClick={() => setViewMode('families')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+            viewMode === 'families'
+              ? 'bg-white text-rose-700 shadow-sm'
+              : 'text-gray-700 hover:text-gray-900'
+          }`}
         >
-          <UserPlus className="h-5 w-5" />
-          Add Guest
-        </Link>
+          <Users className="h-4 w-4" />
+          Families
+        </button>
+        <button
+          onClick={() => setViewMode('individuals')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+            viewMode === 'individuals'
+              ? 'bg-white text-rose-700 shadow-sm'
+              : 'text-gray-700 hover:text-gray-900'
+          }`}
+        >
+          <List className="h-4 w-4" />
+          Individuals
+        </button>
+        <button
+          onClick={() => setViewMode('logistics')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+            viewMode === 'logistics'
+              ? 'bg-white text-rose-700 shadow-sm'
+              : 'text-gray-700 hover:text-gray-900'
+          }`}
+        >
+          <Truck className="h-4 w-4" />
+          Logistics
+        </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-xl bg-white border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600">Total Guests</h3>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{count || 0}</p>
-        </div>
-        <div className="rounded-xl bg-white border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600">Confirmed</h3>
-          <p className="mt-2 text-3xl font-bold text-green-600">{confirmedGuests}</p>
-        </div>
-        <div className="rounded-xl bg-white border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600">Pending</h3>
-          <p className="mt-2 text-3xl font-bold text-amber-600">{pendingGuests}</p>
-        </div>
-        <div className="rounded-xl bg-white border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600">Declined</h3>
-          <p className="mt-2 text-3xl font-bold text-red-600">{declinedGuests}</p>
-        </div>
-      </div>
-
-      {/* Actions Bar */}
-      <div className="rounded-xl bg-white border border-gray-200 p-4 shadow-sm">
-        <div className="flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex gap-3 flex-1">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search guests..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
-              />
-            </div>
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filter
-            </button>
+      {/* Search & Filters (Families and Individuals views only) */}
+      {viewMode !== 'logistics' && (
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={`Search ${viewMode === 'families' ? 'families' : 'guests'}...`}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+            />
           </div>
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Export
+
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="px-4 py-2 border-2 border-gray-300 rounded-lg hover:border-rose-300 hover:bg-rose-50 flex items-center gap-2 font-semibold transition-all"
+          >
+            <Filter className="h-4 w-4" />
+            Filters
           </button>
         </div>
-      </div>
+      )}
 
-      {/* Guest List */}
-      <div className="rounded-xl bg-white border border-gray-200 shadow-sm">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">All Guests</h3>
+      {/* Filter Pills */}
+      {showFilters && viewMode === 'families' && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFilterMode('all')}
+            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+              filterMode === 'all'
+                ? 'bg-rose-700 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            All Families
+          </button>
+          <button
+            onClick={() => setFilterMode('pending')}
+            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+              filterMode === 'pending'
+                ? 'bg-amber-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Pending RSVP
+          </button>
+          <button
+            onClick={() => setFilterMode('outstation')}
+            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+              filterMode === 'outstation'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Outstation
+          </button>
+          <button
+            onClick={() => setFilterMode('vip')}
+            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+              filterMode === 'vip'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            VIP
+          </button>
+          <button
+            onClick={() => setFilterMode('no-hotel')}
+            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+              filterMode === 'no-hotel'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            No Hotel
+          </button>
+          <button
+            onClick={() => setFilterMode('no-pickup')}
+            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+              filterMode === 'no-pickup'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            No Pickup
+          </button>
+        </div>
+      )}
 
-          {!guests || guests.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">👥</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No guests yet</h3>
-              <p className="text-gray-600 mb-6">Add guests to your events to see them here</p>
-              <Link
-                href="/events"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-medium hover:from-rose-800 hover:to-rose-950"
-              >
-                <UserPlus className="h-5 w-5" />
-                Go to Events
-              </Link>
+      {/* Content based on view mode */}
+      {viewMode === 'families' && (
+        <div className="space-y-4">
+          {filteredFamilies.length === 0 ? (
+            <div className="rounded-xl border-2 border-gray-200 bg-white p-12 text-center">
+              <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                No families yet
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Start by adding your first family to track RSVPs and logistics
+              </p>
+              <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-700 to-rose-900 text-white rounded-lg hover:from-rose-800 hover:to-rose-950 font-semibold transition-all">
+                <Plus className="h-5 w-5" />
+                Add First Family
+              </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Name</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Email</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Phone</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Side</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {guests.map((guest) => (
-                    <tr key={guest.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 font-medium text-gray-900">{guest.name}</td>
-                      <td className="py-3 px-4 text-gray-600">{guest.email || '-'}</td>
-                      <td className="py-3 px-4 text-gray-600">{guest.phone || '-'}</td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            guest.rsvp_status === 'confirmed'
-                              ? 'bg-green-100 text-green-700'
-                              : guest.rsvp_status === 'declined'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          {guest.rsvp_status || 'pending'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">
-                        {guest.family_side ? (
-                          <span className="capitalize">{guest.family_side}</span>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredFamilies.map((family) => (
+                <FamilyCard
+                  key={family.id}
+                  family={family}
+                  onClick={() => setSelectedFamilyId(family.id)}
+                />
+              ))}
             </div>
           )}
         </div>
-      </div>
+      )}
+
+      {viewMode === 'individuals' && (
+        <IndividualsView
+          guests={mockIndividuals}
+          onGuestClick={(guestId) => {
+            // Find the family for this guest and open the drawer
+            console.log('Guest clicked:', guestId);
+          }}
+        />
+      )}
+
+      {viewMode === 'logistics' && (
+        <LogisticsView
+          hotelAssignments={mockLogistics.hotelAssignments}
+          pickupAssignments={mockLogistics.pickupAssignments}
+          guestsNeedingHotel={mockLogistics.guestsNeedingHotel}
+          guestsNeedingPickup={mockLogistics.guestsNeedingPickup}
+          onFamilyClick={(familyId) => {
+            setViewMode('families');
+            setSelectedFamilyId(familyId);
+          }}
+        />
+      )}
+
+      {/* Family Detail Drawer */}
+      {selectedFamily && (
+        <FamilyDetailDrawer
+          family={selectedFamily}
+          members={mockMembers}
+          rsvpHistory={mockRSVPHistory}
+          costImpact={mockCostImpact}
+          onClose={() => setSelectedFamilyId(null)}
+        />
+      )}
     </div>
   );
 }

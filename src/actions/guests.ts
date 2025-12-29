@@ -451,3 +451,301 @@ export async function importGuestsFromCSV(formData: FormData) {
     };
   }
 }
+
+// ============================================================================
+// FAMILY-AWARE GUEST MANAGEMENT
+// ============================================================================
+
+/**
+ * Create a new family group
+ */
+export async function createFamily(formData: FormData) {
+  const supabase = await createClient();
+
+  const family_name = formData.get('family_name') as string;
+  const family_side = formData.get('family_side') as string;
+  const event_id = formData.get('event_id') as string;
+  const primary_contact_name = formData.get('primary_contact_name') as string;
+  const primary_contact_phone = formData.get('primary_contact_phone') as string;
+  const is_vip = formData.get('is_vip') === 'true';
+
+  if (!family_name || !family_side || !event_id) {
+    return { error: 'Family name, side, and event are required' };
+  }
+
+  const { data, error } = await supabase
+    .from('wedding_family_groups')
+    .insert({
+      event_id,
+      family_name,
+      family_side,
+      primary_contact_name,
+      primary_contact_phone,
+      is_vip,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating family:', error);
+    return { error: 'Failed to create family' };
+  }
+
+  revalidatePath('/guests');
+  return { success: true, family: data };
+}
+
+/**
+ * Add a family member
+ */
+export async function addFamilyMember(formData: FormData) {
+  const supabase = await createClient();
+
+  const family_id = formData.get('family_id') as string;
+  const event_id = formData.get('event_id') as string;
+  const name = formData.get('name') as string;
+  const age = formData.get('age') ? parseInt(formData.get('age') as string) : undefined;
+  const dietary_restrictions = formData.get('dietary_restrictions') as string;
+  const is_elderly = formData.get('is_elderly') === 'true';
+  const is_child = formData.get('is_child') === 'true';
+  const is_vip = formData.get('is_vip') === 'true';
+
+  if (!family_id || !event_id || !name) {
+    return { error: 'Family, event, and name are required' };
+  }
+
+  const { data, error } = await supabase
+    .from('guests')
+    .insert({
+      guest_group_id: family_id,
+      event_id,
+      name,
+      age,
+      dietary_restrictions,
+      is_elderly,
+      is_child,
+      is_vip,
+      rsvp_status: 'pending',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error adding family member:', error);
+    return { error: 'Failed to add family member' };
+  }
+
+  // Update family member counts
+  await updateFamilyMemberCounts(family_id);
+
+  revalidatePath('/guests');
+  return { success: true, member: data };
+}
+
+/**
+ * Update RSVP status with cutoff tracking
+ */
+export async function updateFamilyMemberRSVP(
+  guestId: string,
+  status: 'pending' | 'confirmed' | 'declined' | 'maybe',
+  rsvpCutoffDate?: string
+) {
+  const supabase = await createClient();
+
+  // Check if this is a late confirmation
+  const isLate = rsvpCutoffDate
+    ? new Date() > new Date(rsvpCutoffDate) && status === 'confirmed'
+    : false;
+
+  const { data, error } = await supabase
+    .from('guests')
+    .update({
+      rsvp_status: status,
+      rsvp_updated_at: new Date().toISOString(),
+    })
+    .eq('id', guestId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating RSVP:', error);
+    return { error: 'Failed to update RSVP' };
+  }
+
+  // Update family member counts
+  if (data.guest_group_id) {
+    await updateFamilyMemberCounts(data.guest_group_id);
+  }
+
+  revalidatePath('/guests');
+  return { success: true, guest: data, isLate };
+}
+
+/**
+ * Bulk update RSVP status for multiple guests
+ */
+export async function bulkUpdateFamilyRSVP(
+  guestIds: string[],
+  status: 'pending' | 'confirmed' | 'declined' | 'maybe'
+) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('guests')
+    .update({
+      rsvp_status: status,
+      rsvp_updated_at: new Date().toISOString(),
+    })
+    .in('id', guestIds);
+
+  if (error) {
+    console.error('Error bulk updating RSVP:', error);
+    return { error: 'Failed to update RSVPs' };
+  }
+
+  revalidatePath('/guests');
+  return { success: true };
+}
+
+/**
+ * Assign hotel to a family
+ */
+export async function assignHotelToFamily(
+  familyId: string,
+  hotelName: string,
+  roomsAllocated: number
+) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('wedding_family_groups')
+    .update({
+      hotel_name: hotelName,
+      rooms_allocated: roomsAllocated,
+    })
+    .eq('id', familyId);
+
+  if (error) {
+    console.error('Error assigning hotel:', error);
+    return { error: 'Failed to assign hotel' };
+  }
+
+  revalidatePath('/guests');
+  return { success: true };
+}
+
+/**
+ * Assign pickup/transport to a family
+ */
+export async function assignPickupToFamily(
+  familyId: string,
+  pickupTime: string,
+  pickupLocation: string,
+  vehicleType?: string
+) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('wedding_family_groups')
+    .update({
+      pickup_assigned: true,
+      pickup_time: pickupTime,
+      pickup_location: pickupLocation,
+      vehicle_type: vehicleType,
+    })
+    .eq('id', familyId);
+
+  if (error) {
+    console.error('Error assigning pickup:', error);
+    return { error: 'Failed to assign pickup' };
+  }
+
+  revalidatePath('/guests');
+  return { success: true };
+}
+
+/**
+ * Delete a family and all its members
+ */
+export async function deleteFamily(familyId: string) {
+  const supabase = await createClient();
+
+  // First delete all family members
+  await supabase.from('guests').delete().eq('guest_group_id', familyId);
+
+  // Then delete the family
+  const { error } = await supabase
+    .from('wedding_family_groups')
+    .delete()
+    .eq('id', familyId);
+
+  if (error) {
+    console.error('Error deleting family:', error);
+    return { error: 'Failed to delete family' };
+  }
+
+  revalidatePath('/guests');
+  return { success: true };
+}
+
+/**
+ * Update family member counts (helper function)
+ */
+async function updateFamilyMemberCounts(familyId: string) {
+  const supabase = await createClient();
+
+  const { data: members } = await supabase
+    .from('guests')
+    .select('rsvp_status')
+    .eq('guest_group_id', familyId);
+
+  if (!members) return;
+
+  const confirmed = members.filter((m) => m.rsvp_status === 'confirmed').length;
+  const pending = members.filter((m) => m.rsvp_status === 'pending').length;
+  const declined = members.filter((m) => m.rsvp_status === 'declined').length;
+
+  await supabase
+    .from('wedding_family_groups')
+    .update({
+      total_members: members.length,
+      members_confirmed: confirmed,
+      members_pending: pending,
+      members_declined: declined,
+    })
+    .eq('id', familyId);
+}
+
+/**
+ * Send RSVP reminder via WhatsApp (returns WhatsApp URL)
+ */
+export async function sendRSVPReminder(
+  familyId: string,
+  eventName: string,
+  eventDate: string
+) {
+  const supabase = await createClient();
+
+  const { data: family } = await supabase
+    .from('wedding_family_groups')
+    .select('family_name, primary_contact_phone')
+    .eq('id', familyId)
+    .single();
+
+  if (!family || !family.primary_contact_phone) {
+    return { error: 'No phone number found for this family' };
+  }
+
+  const message = `Hi ${family.family_name} family!
+
+This is a friendly reminder to confirm your attendance for ${eventName} on ${eventDate}.
+
+Please let us know at your earliest convenience. Looking forward to celebrating with you! 🎉`;
+
+  const whatsappUrl = `https://wa.me/${family.primary_contact_phone.replace(
+    /\D/g,
+    ''
+  )}?text=${encodeURIComponent(message)}`;
+
+  return { success: true, whatsappUrl };
+}
