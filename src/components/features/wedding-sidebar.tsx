@@ -15,7 +15,7 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Guest Management', href: '/guests', icon: Users },
-  { name: 'Events & Timeline', href: '/events', icon: Calendar },
+  { name: 'Events & Timeline', href: '/timeline', icon: Calendar },
   { name: 'Budget Tracker', href: '/budget', icon: IndianRupee },
   { name: 'Vendors', href: '/vendors', icon: Store },
   { name: 'Tasks', href: '/tasks', icon: ListTodo },

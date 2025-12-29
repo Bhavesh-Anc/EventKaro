@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { WeddingStatCards } from '@/components/features/wedding-stat-cards';
 import { WeddingQuickActions } from '@/components/features/wedding-quick-actions';
-import { WeddingUpcomingEvents } from '@/components/features/wedding-upcoming-events';
+import { DashboardWeddingTimeline } from '@/components/features/dashboard-wedding-timeline';
 import { WeddingGuestOverview } from '@/components/features/wedding-guest-overview';
 import { WeddingBudgetTracker } from '@/components/features/wedding-budget-tracker';
 import { WeddingVendorList } from '@/components/features/wedding-vendor-list';
@@ -23,13 +23,24 @@ export default async function DashboardPage() {
   const currentOrg = organizations[0];
   const supabase = await createClient();
 
+  // Check if user has any events
+  const { data: allEvents } = await supabase
+    .from('events')
+    .select('id')
+    .eq('organization_id', currentOrg.id)
+    .limit(1);
+
+  // If no events, redirect to event creation
+  if (!allEvents || allEvents.length === 0) {
+    redirect('/events/new');
+  }
+
   // Fetch wedding events for this organization
   const { data: weddingEvents } = await supabase
     .from('events')
     .select('*')
     .eq('organization_id', currentOrg.id)
     .eq('event_type', 'wedding')
-    .eq('status', 'published')
     .order('start_date', { ascending: true })
     .limit(1);
 
@@ -50,88 +61,109 @@ export default async function DashboardPage() {
   const pendingGuests = guests?.filter((g) => g.rsvp_status === 'pending').length || 0;
   const declinedGuests = guests?.filter((g) => g.rsvp_status === 'declined').length || 0;
 
-  // Placeholder stats (TODO: Implement real queries)
-  const budgetUsed = 65; // percentage
-  const tasksCompleted = 42;
-  const totalTasks = 68;
+  // Fetch tasks
+  const { data: tasks, count: totalTasks } = await supabase
+    .from('tasks')
+    .select('*', { count: 'exact' })
+    .eq('organization_id', currentOrg.id);
 
-  // Fetch upcoming wedding sub-events
-  const upcomingEvents = weddingEvent
+  const tasksCompleted = tasks?.filter((t) => t.completed).length || 0;
+
+  // Calculate budget stats from wedding events if available
+  let budgetUsed = 0;
+  let totalBudget = 0;
+  let totalSpent = 0;
+  const budgetCategories: any[] = [];
+
+  if (weddingEvent) {
+    const { data: eventBudgets } = await supabase
+      .from('wedding_event_budgets')
+      .select('*')
+      .eq('parent_event_id', weddingEvent.id);
+
+    if (eventBudgets && eventBudgets.length > 0) {
+      totalBudget = eventBudgets.reduce((sum, b) => sum + (b.allocated_amount || 0), 0);
+      totalSpent = eventBudgets.reduce((sum, b) => sum + (b.spent_amount || 0), 0);
+      budgetUsed = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+    }
+  }
+
+  // Fetch all wedding sub-events with vendor assignments for status calculation
+  const { data: weddingSubEvents } = weddingEvent
     ? await supabase
         .from('wedding_events')
-        .select('*')
+        .select(`
+          *,
+          vendor_assignments:wedding_event_vendor_assignments(
+            id,
+            status,
+            vendors(
+              id,
+              business_name,
+              category
+            )
+          ),
+          budget:wedding_event_budgets(
+            allocated_amount,
+            spent_amount
+          )
+        `)
         .eq('parent_event_id', weddingEvent.id)
         .gte('start_datetime', new Date().toISOString())
         .order('start_datetime', { ascending: true })
-        .limit(3)
     : { data: [] };
 
-  // Format upcoming events for component
-  const formattedEvents =
-    upcomingEvents.data?.map((e) => ({
-      id: e.id,
-      title: e.custom_event_name || e.event_name,
-      venue: e.venue_name || 'TBD',
-      date: new Date(e.start_datetime),
-      time: new Date(e.start_datetime).toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      expectedGuests: e.expected_guest_count || 0,
-      confirmed: 0, // TODO: Implement real count
-      eventType: e.event_name,
-    })) || [];
+  // Format events for timeline component
+  const timelineEvents = weddingSubEvents?.map((e: any) => ({
+    id: e.id,
+    event_name: e.event_name,
+    custom_event_name: e.custom_event_name,
+    start_datetime: e.start_datetime,
+    end_datetime: e.end_datetime,
+    venue_name: e.venue_name,
+    expected_guest_count: e.expected_guest_count,
+    guest_subset: e.guest_subset,
+    vendor_assignments: e.vendor_assignments,
+    budget_allocated: e.budget?.[0]?.allocated_amount || 0,
+    has_transport: e.transport_required || false,
+    transport_assigned: false, // TODO: Check transport assignments
+  })) || [];
 
-  // Placeholder data for widgets
-  const budgetCategories = [
-    { name: 'Venue', spent: 500000, budget: 800000, color: 'from-purple-500 to-purple-600' },
-    { name: 'Catering', spent: 300000, budget: 500000, color: 'from-blue-500 to-blue-600' },
-    { name: 'Photography', spent: 150000, budget: 200000, color: 'from-green-500 to-green-600' },
-    { name: 'Decoration', spent: 100000, budget: 150000, color: 'from-pink-500 to-pink-600' },
-  ];
+  // Fetch vendors assigned to this event
+  const { data: vendorAssignments } = await supabase
+    .from('wedding_event_vendor_assignments')
+    .select(`
+      id,
+      status,
+      vendors (
+        id,
+        business_name,
+        category,
+        contact_phone,
+        contact_email
+      )
+    `)
+    .eq('parent_event_id', weddingEvent?.id)
+    .limit(5);
 
-  const vendors = [
-    {
-      id: '1',
-      name: 'Royal Caterers',
-      category: 'Catering',
-      status: 'confirmed' as const,
-      phone: '+91 98765 43210',
-      email: 'royal@caterers.com',
-    },
-    {
-      id: '2',
-      name: 'Pixel Perfect Studio',
-      category: 'Photography',
-      status: 'pending' as const,
-      phone: '+91 98765 43211',
-      email: 'hello@pixelperfect.com',
-    },
-  ];
+  const vendors = vendorAssignments?.map((va: any) => ({
+    id: va.vendors.id,
+    name: va.vendors.business_name,
+    category: va.vendors.category,
+    status: va.status,
+    phone: va.vendors.contact_phone,
+    email: va.vendors.contact_email,
+  })) || [];
 
-  const tasks = [
-    {
-      id: '1',
-      title: 'Finalize menu with caterer',
-      dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-      priority: 'high' as const,
-      completed: false,
-      assignee: 'You',
-    },
-    {
-      id: '2',
-      title: 'Book makeup artist',
-      dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-      priority: 'medium' as const,
-      completed: false,
-    },
-    {
-      id: '3',
-      title: 'Send invitations',
-      priority: 'high' as const,
-      completed: false,
-    },
-  ];
+  // Fetch recent tasks
+  const recentTasks = tasks?.slice(0, 5).map((t) => ({
+    id: t.id,
+    title: t.title,
+    dueDate: t.due_date ? new Date(t.due_date) : undefined,
+    priority: t.priority || 'medium',
+    completed: t.completed || false,
+    assignee: t.assignee || 'Unassigned',
+  })) || [];
 
   return (
     <div className="space-y-6">
@@ -140,7 +172,9 @@ export default async function DashboardPage() {
         <h1 className="text-3xl font-bold text-gray-900">
           Welcome back, {user?.user_metadata?.full_name || 'there'}! 👋
         </h1>
-        <p className="text-gray-600 mt-1">Here's what's happening with your wedding</p>
+        <p className="text-gray-600 mt-1">
+          {weddingEvent ? "Here's what's happening with your wedding" : "Let's get started with your event planning"}
+        </p>
       </div>
 
       {/* Stats Cards */}
@@ -150,7 +184,7 @@ export default async function DashboardPage() {
           totalGuests: totalGuests || 0,
           budgetUsed,
           tasksCompleted,
-          totalTasks,
+          totalTasks: totalTasks || 0,
         }}
       />
 
@@ -161,7 +195,7 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Left Column */}
         <div className="space-y-6">
-          <WeddingUpcomingEvents events={formattedEvents} parentEventId={weddingEvent?.id} />
+          <DashboardWeddingTimeline events={timelineEvents} parentEventId={weddingEvent?.id || ''} />
           <WeddingGuestOverview
             stats={{
               total: totalGuests || 0,
@@ -177,12 +211,12 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           <WeddingBudgetTracker
             categories={budgetCategories}
-            totalBudget={1650000}
-            totalSpent={1050000}
+            totalBudget={totalBudget}
+            totalSpent={totalSpent}
             eventId={weddingEvent?.id}
           />
           <WeddingVendorList vendors={vendors} eventId={weddingEvent?.id} />
-          <WeddingTaskList tasks={tasks} eventId={weddingEvent?.id} />
+          <WeddingTaskList tasks={recentTasks} eventId={weddingEvent?.id} />
         </div>
       </div>
     </div>

@@ -19,7 +19,13 @@ export async function createEvent(formData: FormData) {
   const description = formData.get('description') as string;
   const eventType = formData.get('event_type') as string;
   const startDate = formData.get('start_date') as string;
-  const endDate = formData.get('end_date') as string;
+  let endDate = formData.get('end_date') as string;
+
+  // For wedding events, set end_date to start_date if not provided
+  if (eventType === 'wedding' && !endDate) {
+    endDate = startDate;
+  }
+
   const venueType = formData.get('venue_type') as string;
   const venueName = formData.get('venue_name') as string || null;
   const venueCity = formData.get('venue_city') as string || null;
@@ -42,18 +48,21 @@ export async function createEvent(formData: FormData) {
       venue_city: venueCity,
       capacity,
       is_free: isFree,
-      status: 'draft',
+      status: 'published',
     })
     .select()
     .single();
 
   if (eventError) {
     console.error('Error creating event:', eventError);
+    redirect('/dashboard');
   }
 
   revalidatePath('/dashboard');
   revalidatePath('/events');
-  redirect(event ? `/events/${event.id}` : '/dashboard');
+
+  // Redirect to dashboard after creating event
+  redirect('/dashboard');
 }
 
 export async function getOrganizationEvents(organizationId: string) {
