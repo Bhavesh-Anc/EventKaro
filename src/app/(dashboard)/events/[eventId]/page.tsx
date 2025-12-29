@@ -140,6 +140,15 @@ export default async function EventDetailPage({
       <div className="rounded-lg border p-6">
         <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
         <div className="grid gap-4 md:grid-cols-6">
+          {event.event_type === 'wedding' && (
+            <Link
+              href={`/events/${eventId}/wedding-timeline`}
+              className="rounded-md border-2 border-purple-500 bg-purple-50 p-4 text-center hover:bg-purple-100 block"
+            >
+              <div className="text-2xl mb-2">💒</div>
+              <h4 className="font-medium text-purple-900">Wedding Timeline</h4>
+            </Link>
+          )}
           <Link
             href={`/events/${eventId}/tickets`}
             className="rounded-md border p-4 text-center hover:bg-muted block"
