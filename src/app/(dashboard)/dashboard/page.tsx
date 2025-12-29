@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { WeddingStatCards } from '@/components/features/wedding-stat-cards';
 import { WeddingQuickActions } from '@/components/features/wedding-quick-actions';
-import { WeddingUpcomingEvents } from '@/components/features/wedding-upcoming-events';
+import { DashboardWeddingTimeline } from '@/components/features/dashboard-wedding-timeline';
 import { WeddingGuestOverview } from '@/components/features/wedding-guest-overview';
 import { WeddingBudgetTracker } from '@/components/features/wedding-budget-tracker';
 import { WeddingVendorList } from '@/components/features/wedding-vendor-list';
@@ -88,32 +88,46 @@ export default async function DashboardPage() {
     }
   }
 
-  // Fetch upcoming wedding sub-events
-  const upcomingEvents = weddingEvent
+  // Fetch all wedding sub-events with vendor assignments for status calculation
+  const { data: weddingSubEvents } = weddingEvent
     ? await supabase
         .from('wedding_events')
-        .select('*')
+        .select(`
+          *,
+          vendor_assignments:wedding_event_vendor_assignments(
+            id,
+            status,
+            vendors(
+              id,
+              business_name,
+              category
+            )
+          ),
+          budget:wedding_event_budgets(
+            allocated_amount,
+            spent_amount
+          )
+        `)
         .eq('parent_event_id', weddingEvent.id)
         .gte('start_datetime', new Date().toISOString())
         .order('start_datetime', { ascending: true })
-        .limit(3)
     : { data: [] };
 
-  // Format upcoming events for component
-  const formattedEvents =
-    upcomingEvents.data?.map((e) => ({
-      id: e.id,
-      title: e.custom_event_name || e.event_name,
-      venue: e.venue_name || 'TBD',
-      date: new Date(e.start_datetime),
-      time: new Date(e.start_datetime).toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      expectedGuests: e.expected_guest_count || 0,
-      confirmed: 0,
-      eventType: e.event_name,
-    })) || [];
+  // Format events for timeline component
+  const timelineEvents = weddingSubEvents?.map((e: any) => ({
+    id: e.id,
+    event_name: e.event_name,
+    custom_event_name: e.custom_event_name,
+    start_datetime: e.start_datetime,
+    end_datetime: e.end_datetime,
+    venue_name: e.venue_name,
+    expected_guest_count: e.expected_guest_count,
+    guest_subset: e.guest_subset,
+    vendor_assignments: e.vendor_assignments,
+    budget_allocated: e.budget?.[0]?.allocated_amount || 0,
+    has_transport: e.transport_required || false,
+    transport_assigned: false, // TODO: Check transport assignments
+  })) || [];
 
   // Fetch vendors assigned to this event
   const { data: vendorAssignments } = await supabase
@@ -181,7 +195,7 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Left Column */}
         <div className="space-y-6">
-          <WeddingUpcomingEvents events={formattedEvents} parentEventId={weddingEvent?.id} />
+          <DashboardWeddingTimeline events={timelineEvents} parentEventId={weddingEvent?.id || ''} />
           <WeddingGuestOverview
             stats={{
               total: totalGuests || 0,
