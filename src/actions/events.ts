@@ -19,7 +19,13 @@ export async function createEvent(formData: FormData) {
   const description = formData.get('description') as string;
   const eventType = formData.get('event_type') as string;
   const startDate = formData.get('start_date') as string;
-  const endDate = formData.get('end_date') as string;
+  let endDate = formData.get('end_date') as string;
+
+  // For wedding events, set end_date to start_date if not provided
+  if (eventType === 'wedding' && !endDate) {
+    endDate = startDate;
+  }
+
   const venueType = formData.get('venue_type') as string;
   const venueName = formData.get('venue_name') as string || null;
   const venueCity = formData.get('venue_city') as string || null;
@@ -42,18 +48,37 @@ export async function createEvent(formData: FormData) {
       venue_city: venueCity,
       capacity,
       is_free: isFree,
-      status: 'draft',
+      status: 'published',
     })
     .select()
     .single();
 
   if (eventError) {
     console.error('Error creating event:', eventError);
+    redirect('/dashboard');
+  }
+
+  // If wedding event, automatically create default wedding sub-events
+  if (event && eventType === 'wedding') {
+    const weddingDate = new Date(startDate);
+
+    // Call the database function to create default events
+    const { error: weddingEventsError } = await supabase.rpc(
+      'create_default_wedding_events',
+      {
+        parent_id: event.id,
+        wedding_date: startDate.split('T')[0]
+      }
+    );
+
+    if (weddingEventsError) {
+      console.error('Error creating wedding sub-events:', weddingEventsError);
+    }
   }
 
   revalidatePath('/dashboard');
   revalidatePath('/events');
-  redirect(event ? `/events/${event.id}` : '/dashboard');
+  redirect(event ? `/events/${event.id}/wedding-timeline` : '/dashboard');
 }
 
 export async function getOrganizationEvents(organizationId: string) {
