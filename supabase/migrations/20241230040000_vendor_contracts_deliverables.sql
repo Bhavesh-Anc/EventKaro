@@ -145,17 +145,8 @@ CREATE TABLE contract_payment_milestones (
   payment_mode TEXT CHECK (payment_mode IN ('cash', 'cheque', 'bank_transfer', 'upi', 'card', 'other')),
   payment_reference TEXT, -- transaction ID, cheque number, etc.
 
-  -- Overdue tracking
-  is_overdue BOOLEAN GENERATED ALWAYS AS (
-    status = 'pending' AND due_date IS NOT NULL AND due_date < CURRENT_DATE
-  ) STORED,
-  days_overdue INTEGER GENERATED ALWAYS AS (
-    CASE
-      WHEN status = 'pending' AND due_date IS NOT NULL AND due_date < CURRENT_DATE
-      THEN CURRENT_DATE - due_date
-      ELSE 0
-    END
-  ) STORED,
+  -- Overdue tracking (computed via view, not generated column - CURRENT_DATE is not immutable)
+  -- Use payment_status_view to get is_overdue and days_overdue
 
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -165,6 +156,23 @@ CREATE TABLE contract_payment_milestones (
 CREATE INDEX idx_payment_milestones_contract ON contract_payment_milestones(contract_id);
 CREATE INDEX idx_payment_milestones_status ON contract_payment_milestones(status);
 CREATE INDEX idx_payment_milestones_due_date ON contract_payment_milestones(due_date);
+
+-- ============================================
+-- PAYMENT STATUS VIEW (with overdue calculation)
+-- ============================================
+
+CREATE OR REPLACE VIEW payment_milestones_with_status AS
+SELECT
+  *,
+  -- Compute overdue status dynamically
+  (status = 'pending' AND due_date IS NOT NULL AND due_date < CURRENT_DATE) as is_overdue,
+  -- Compute days overdue
+  CASE
+    WHEN status = 'pending' AND due_date IS NOT NULL AND due_date < CURRENT_DATE
+    THEN CURRENT_DATE - due_date
+    ELSE 0
+  END as days_overdue
+FROM contract_payment_milestones;
 
 -- ============================================
 -- VENDOR PERFORMANCE TRACKING
@@ -250,7 +258,7 @@ SELECT
 
   -- Payment reliability (from vendor's perspective - how well organizers pay)
   COUNT(cpm.id) FILTER (WHERE cpm.status = 'paid') as payments_received,
-  COUNT(cpm.id) FILTER (WHERE cpm.status = 'overdue') as payments_overdue,
+  COUNT(cpm.id) FILTER (WHERE cpm.status = 'pending' AND cpm.due_date < CURRENT_DATE) as payments_overdue,
 
   -- Overall reliability score (0-100)
   ROUND(
@@ -310,14 +318,14 @@ SELECT
   -- Payment status
   COUNT(cpm.id) as total_payment_milestones,
   COUNT(*) FILTER (WHERE cpm.status = 'paid') as paid_milestones,
-  COUNT(*) FILTER (WHERE cpm.status = 'overdue') as overdue_milestones,
+  COUNT(*) FILTER (WHERE cpm.status = 'pending' AND cpm.due_date < CURRENT_DATE) as overdue_milestones,
   SUM(CASE WHEN cpm.status = 'paid' THEN cpm.paid_amount_inr ELSE 0 END) as total_paid,
   SUM(CASE WHEN cpm.status != 'paid' THEN cpm.amount_inr ELSE 0 END) as total_pending,
   ROUND((SUM(CASE WHEN cpm.status = 'paid' THEN cpm.paid_amount_inr ELSE 0 END)::DECIMAL / NULLIF(vc.total_amount_inr, 0) * 100), 2) as payment_completion_percentage,
 
   -- Overall health
   CASE
-    WHEN COUNT(*) FILTER (WHERE cd.status = 'delayed') > 0 OR COUNT(*) FILTER (WHERE cpm.status = 'overdue') > 0 THEN 'at_risk'
+    WHEN COUNT(*) FILTER (WHERE cd.status = 'delayed') > 0 OR COUNT(*) FILTER (WHERE cpm.status = 'pending' AND cpm.due_date < CURRENT_DATE) > 0 THEN 'at_risk'
     WHEN COUNT(*) FILTER (WHERE cd.status IN ('delivered', 'approved')) = COUNT(cd.id) AND COUNT(*) FILTER (WHERE cpm.status = 'paid') = COUNT(cpm.id) THEN 'completed'
     WHEN COUNT(*) FILTER (WHERE cd.status = 'pending') > 0 OR COUNT(*) FILTER (WHERE cpm.status = 'pending') > 0 THEN 'in_progress'
     ELSE 'unknown'
