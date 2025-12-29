@@ -113,7 +113,89 @@ export async function createWeddingSubEvents(formData: FormData) {
   }
 
   revalidatePath('/dashboard');
+  revalidatePath('/timeline');
   revalidatePath(`/events/${parentEventId}`);
 
   redirect('/dashboard');
+}
+
+export async function updateWeddingEvent(formData: FormData) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/login');
+  }
+
+  const eventId = formData.get('event_id') as string;
+  const customEventName = formData.get('custom_event_name') as string;
+  const description = formData.get('description') as string;
+  const startDatetime = formData.get('start_datetime') as string;
+  const endDatetime = formData.get('end_datetime') as string;
+  const venueName = formData.get('venue_name') as string;
+  const venueAddress = formData.get('venue_address') as string;
+  const venueCity = formData.get('venue_city') as string;
+  const venueState = formData.get('venue_state') as string;
+  const venueType = formData.get('venue_type') as string;
+  const expectedGuestCount = formData.get('expected_guest_count') as string;
+  const guestSubset = formData.get('guest_subset') as string;
+  const dressCode = formData.get('dress_code') as string;
+  const colorTheme = formData.get('color_theme') as string;
+  const transportRequired = formData.get('transport_required') === 'true';
+
+  if (!eventId) {
+    return { error: 'Event ID is required' };
+  }
+
+  const { error } = await supabase
+    .from('wedding_events')
+    .update({
+      custom_event_name: customEventName || null,
+      description: description || null,
+      start_datetime: startDatetime,
+      end_datetime: endDatetime,
+      venue_name: venueName || null,
+      venue_address: venueAddress || null,
+      venue_city: venueCity || null,
+      venue_state: venueState || null,
+      venue_type: venueType || null,
+      expected_guest_count: expectedGuestCount ? parseInt(expectedGuestCount) : null,
+      guest_subset: guestSubset || null,
+      dress_code: dressCode || null,
+      color_theme: colorTheme || null,
+      transport_required: transportRequired,
+    })
+    .eq('id', eventId);
+
+  if (error) {
+    console.error('Error updating wedding event:', error);
+    return { error: error.message };
+  }
+
+  revalidatePath('/dashboard');
+  revalidatePath('/timeline');
+  return { success: true };
+}
+
+export async function deleteWeddingEvent(eventId: string) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/login');
+  }
+
+  const { error } = await supabase
+    .from('wedding_events')
+    .delete()
+    .eq('id', eventId);
+
+  if (error) {
+    console.error('Error deleting wedding event:', error);
+    return { error: error.message };
+  }
+
+  revalidatePath('/dashboard');
+  revalidatePath('/timeline');
+  return { success: true };
 }

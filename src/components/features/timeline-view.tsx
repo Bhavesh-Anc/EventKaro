@@ -39,8 +39,13 @@ export function TimelineView({ events, parentEventId, weddingDate }: Props) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [weddingDayMode, setWeddingDayMode] = useState(false);
 
+  // Filter events based on Wedding Day Mode
+  const filteredEvents = weddingDayMode
+    ? events.filter((e) => isToday(parseISO(e.start_datetime)))
+    : events;
+
   // Group events by date
-  const eventsByDate = events.reduce((acc, event) => {
+  const eventsByDate = filteredEvents.reduce((acc, event) => {
     const date = format(parseISO(event.start_datetime), 'yyyy-MM-dd');
     if (!acc[date]) {
       acc[date] = [];
@@ -78,30 +83,38 @@ export function TimelineView({ events, parentEventId, weddingDate }: Props) {
     <div className="space-y-6">
       {/* Top Controls */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/events/${parentEventId}/setup-timeline`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 border-rose-300 text-rose-700 rounded-lg hover:bg-rose-50 font-semibold transition-all"
-          >
-            <Plus className="h-4 w-4" />
-            Add Event
-          </Link>
-        </div>
+        {!weddingDayMode && (
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/events/${parentEventId}/setup-timeline`}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 border-rose-300 text-rose-700 rounded-lg hover:bg-rose-50 font-semibold transition-all"
+            >
+              <Plus className="h-4 w-4" />
+              Add Event
+            </Link>
+          </div>
+        )}
+        {weddingDayMode && (
+          <div>
+            <h2 className="text-2xl font-bold text-rose-900">📱 Today's Events</h2>
+            <p className="text-sm text-gray-600">Offline-friendly, read-only view</p>
+          </div>
+        )}
 
         <button
           onClick={() => setWeddingDayMode(!weddingDayMode)}
           className={`px-4 py-2 rounded-lg font-semibold transition-all ${
             weddingDayMode
-              ? 'bg-rose-700 text-white'
+              ? 'bg-rose-700 text-white shadow-lg'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
-          {weddingDayMode ? '📱 Wedding Day Mode' : 'Planning Mode'}
+          {weddingDayMode ? '← Back to Planning' : '📱 Wedding Day Mode'}
         </button>
       </div>
 
       {/* Timeline Container */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
+      <div className={`grid gap-6 ${weddingDayMode ? 'lg:grid-cols-1' : 'lg:grid-cols-[1fr_400px]'}`}>
         {/* Main Timeline */}
         <div className="space-y-8">
           {dates.map((date) => {
@@ -152,15 +165,18 @@ export function TimelineView({ events, parentEventId, weddingDate }: Props) {
                     return (
                       <button
                         key={event.id}
-                        onClick={() =>
-                          setSelectedEventId(
-                            isSelected ? null : event.id
-                          )
-                        }
-                        className={`w-full text-left relative rounded-xl border-2 p-5 transition-all hover:shadow-lg ${
-                          isSelected
-                            ? 'border-rose-500 bg-rose-50 shadow-md'
-                            : 'border-gray-200 bg-white hover:border-rose-300'
+                        onClick={() => {
+                          if (!weddingDayMode) {
+                            setSelectedEventId(isSelected ? null : event.id);
+                          }
+                        }}
+                        disabled={weddingDayMode}
+                        className={`w-full text-left relative rounded-xl border-2 transition-all ${
+                          weddingDayMode
+                            ? 'p-8 border-rose-400 bg-rose-50 cursor-default'
+                            : isSelected
+                            ? 'p-5 border-rose-500 bg-rose-50 shadow-md hover:shadow-lg'
+                            : 'p-5 border-gray-200 bg-white hover:border-rose-300 hover:shadow-lg'
                         }`}
                       >
                         {/* Status Strip */}
@@ -174,11 +190,11 @@ export function TimelineView({ events, parentEventId, weddingDate }: Props) {
                           {/* Event Header */}
                           <div className="flex items-start justify-between gap-3 mb-3">
                             <div>
-                              <h3 className="text-xl font-bold text-gray-900 mb-1">
+                              <h3 className={`font-bold text-gray-900 mb-1 ${weddingDayMode ? 'text-3xl' : 'text-xl'}`}>
                                 {eventName}
                               </h3>
-                              <div className="flex items-center gap-2 text-sm text-gray-700">
-                                <Calendar className="h-4 w-4" />
+                              <div className={`flex items-center gap-2 text-gray-700 ${weddingDayMode ? 'text-lg mt-2' : 'text-sm'}`}>
+                                <Calendar className={weddingDayMode ? 'h-5 w-5' : 'h-4 w-4'} />
                                 <span className="font-semibold">
                                   {format(startDate, 'h:mm a')} –{' '}
                                   {format(endDate, 'h:mm a')}
@@ -190,12 +206,14 @@ export function TimelineView({ events, parentEventId, weddingDate }: Props) {
                             </div>
 
                             <div className="flex items-center gap-2">
-                              <StatusBadge status={statusDetails.status} />
-                              <ChevronRight
-                                className={`h-5 w-5 text-gray-400 transition-transform ${
-                                  isSelected ? 'rotate-90' : ''
-                                }`}
-                              />
+                              <StatusBadge status={statusDetails.status} large={weddingDayMode} />
+                              {!weddingDayMode && (
+                                <ChevronRight
+                                  className={`h-5 w-5 text-gray-400 transition-transform ${
+                                    isSelected ? 'rotate-90' : ''
+                                  }`}
+                                />
+                              )}
                             </div>
                           </div>
 
@@ -246,8 +264,8 @@ export function TimelineView({ events, parentEventId, weddingDate }: Props) {
           })}
         </div>
 
-        {/* Event Detail Panel (Right Side) */}
-        {selectedEvent && (
+        {/* Event Detail Panel (Right Side) - Hidden in Wedding Day Mode */}
+        {!weddingDayMode && selectedEvent && (
           <div className="lg:sticky lg:top-6 h-fit">
             <EventDetailPanel
               event={selectedEvent}
@@ -261,7 +279,7 @@ export function TimelineView({ events, parentEventId, weddingDate }: Props) {
   );
 }
 
-function StatusBadge({ status }: { status: 'ready' | 'attention' | 'conflict' }) {
+function StatusBadge({ status, large = false }: { status: 'ready' | 'attention' | 'conflict'; large?: boolean }) {
   const colors = {
     ready: 'bg-green-100 text-green-800 border-green-200',
     attention: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -270,10 +288,12 @@ function StatusBadge({ status }: { status: 'ready' | 'attention' | 'conflict' })
 
   return (
     <div
-      className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${colors[status]}`}
+      className={`flex items-center gap-1.5 rounded-full border font-bold uppercase tracking-wide ${
+        large ? 'px-4 py-2 text-base' : 'px-3 py-1 text-xs'
+      } ${colors[status]}`}
     >
-      <span>{getStatusIcon(status)}</span>
-      <span className="uppercase tracking-wide">{getStatusLabel(status)}</span>
+      <span className={large ? 'text-xl' : ''}>{getStatusIcon(status)}</span>
+      <span>{getStatusLabel(status)}</span>
     </div>
   );
 }
