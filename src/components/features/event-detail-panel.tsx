@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { X, Calendar, MapPin, Users, DollarSign, Palette, Truck, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import {
@@ -9,6 +10,7 @@ import {
   getStatusLabel,
   type WeddingEventData,
 } from '@/lib/wedding-status';
+import { EditEventModal } from './edit-event-modal';
 
 interface Props {
   event: WeddingEventData;
@@ -23,12 +25,18 @@ interface Props {
  * This is where real work happens - editing, assignments, budgets
  */
 export function EventDetailPanel({ event, allEvents, onClose }: Props) {
+  const [showEditModal, setShowEditModal] = useState(false);
+
   const statusDetails = calculateEventStatus(event, allEvents);
   const eventName = getEventDisplayName(event);
   const startDate = parseISO(event.start_datetime);
   const endDate = parseISO(event.end_datetime);
 
   return (
+    <>
+      {showEditModal && (
+        <EditEventModal event={event} onClose={() => setShowEditModal(false)} />
+      )}
     <div className="rounded-xl border-2 border-rose-300 bg-white shadow-xl">
       {/* Header */}
       <div className="border-b border-gray-200 p-5">
@@ -328,10 +336,14 @@ export function EventDetailPanel({ event, allEvents, onClose }: Props) {
 
       {/* Footer Actions */}
       <div className="border-t border-gray-200 p-4">
-        <button className="w-full px-4 py-3 bg-gradient-to-r from-rose-700 to-rose-900 text-white rounded-lg hover:from-rose-800 hover:to-rose-950 font-semibold transition-all">
+        <button
+          onClick={() => setShowEditModal(true)}
+          className="w-full px-4 py-3 bg-gradient-to-r from-rose-700 to-rose-900 text-white rounded-lg hover:from-rose-800 hover:to-rose-950 font-semibold transition-all"
+        >
           Edit Event Details
         </button>
       </div>
     </div>
+    </>
   );
 }
