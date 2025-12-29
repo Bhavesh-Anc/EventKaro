@@ -142,6 +142,32 @@ export default async function VendorsPage({
         </div>
       </div>
 
+      {/* Vendor CTA Section - Moved up for better visibility */}
+      <div className="rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 p-6 md:p-8 text-white">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="text-center md:text-left">
+            <h3 className="text-xl md:text-2xl font-bold mb-2">Are you a vendor?</h3>
+            <p className="text-sm md:text-base text-white/90">
+              Join EventKaro marketplace and connect with thousands of event organizers across India
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+            <Link
+              href="/vendor-signup"
+              className="rounded-md bg-white px-6 py-3 text-sm font-semibold text-purple-600 hover:bg-white/90 transition-colors whitespace-nowrap"
+            >
+              Register as Vendor
+            </Link>
+            <Link
+              href="/vendor-login"
+              className="rounded-md border-2 border-white px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+            >
+              Vendor Login
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* Filters */}
       <VendorFilters cities={cities} currentParams={params} />
 
@@ -167,44 +193,6 @@ export default async function VendorsPage({
           </div>
         </div>
       )}
-
-      {/* Vendor CTA Section */}
-      <div className="mt-12 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 p-8 text-white">
-        <div className="max-w-3xl mx-auto text-center">
-          <h3 className="text-2xl font-bold mb-3">Are you a vendor?</h3>
-          <p className="text-lg mb-6 text-white/90">
-            Join EventKaro marketplace and connect with thousands of event organizers across India
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link
-              href="/vendor-signup"
-              className="rounded-md bg-white px-6 py-3 text-base font-semibold text-purple-600 hover:bg-white/90 transition-colors"
-            >
-              Register as Vendor
-            </Link>
-            <Link
-              href="/vendor-login"
-              className="rounded-md border-2 border-white px-6 py-3 text-base font-semibold text-white hover:bg-white/10 transition-colors"
-            >
-              Vendor Login
-            </Link>
-          </div>
-          <div className="mt-6 grid grid-cols-3 gap-6 max-w-2xl mx-auto text-center">
-            <div>
-              <div className="text-3xl font-bold">Free</div>
-              <div className="text-sm text-white/80">Registration</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold">1000+</div>
-              <div className="text-sm text-white/80">Event Organizers</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold">24/7</div>
-              <div className="text-sm text-white/80">Support</div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

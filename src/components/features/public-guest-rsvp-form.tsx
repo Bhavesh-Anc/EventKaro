@@ -68,7 +68,14 @@ export default function PublicGuestRSVPForm({ guest, invitationToken }: Props) {
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting RSVP:', error);
-      setError('Failed to submit RSVP. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit RSVP. Please try again.';
+      console.error('RSVP submission error details:', {
+        error,
+        invitationToken,
+        guestId: guest.id,
+        timestamp: new Date().toISOString()
+      });
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
