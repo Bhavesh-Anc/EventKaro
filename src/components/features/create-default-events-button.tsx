@@ -37,7 +37,7 @@ export function CreateDefaultEventsButton({ eventId, weddingDate }: Props) {
       onClick={handleCreate}
       disabled={loading}
       size="lg"
-      className="bg-purple-600 hover:bg-purple-700"
+      className="bg-gradient-to-r from-rose-700 to-rose-900 hover:from-rose-800 hover:to-rose-950"
     >
       {loading ? 'Creating...' : '✨ Create Default Wedding Events'}
     </Button>

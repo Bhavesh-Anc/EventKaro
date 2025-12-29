@@ -54,9 +54,9 @@ export function WeddingTimeline({ eventId, weddingEvents, parentEvent }: Props) 
     <div className="space-y-6">
       {/* Timeline Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-lg border p-4 bg-purple-50">
-          <h3 className="text-sm font-medium text-purple-700">Total Sub-Events</h3>
-          <p className="mt-2 text-3xl font-bold text-purple-900">{weddingEvents.length}</p>
+        <div className="rounded-lg border p-4 bg-rose-50">
+          <h3 className="text-sm font-medium text-rose-700">Total Sub-Events</h3>
+          <p className="mt-2 text-3xl font-bold text-rose-900">{weddingEvents.length}</p>
         </div>
         <div className="rounded-lg border p-4 bg-green-50">
           <h3 className="text-sm font-medium text-green-700">Confirmed</h3>
@@ -81,7 +81,7 @@ export function WeddingTimeline({ eventId, weddingEvents, parentEvent }: Props) 
       {/* Add New Event Button */}
       <div className="flex justify-end">
         <Link href={`/events/${eventId}/wedding-timeline/new`}>
-          <Button className="bg-purple-600 hover:bg-purple-700">
+          <Button className="bg-gradient-to-r from-rose-700 to-rose-900 hover:from-rose-800 hover:to-rose-950">
             + Add Sub-Event
           </Button>
         </Link>
@@ -90,14 +90,14 @@ export function WeddingTimeline({ eventId, weddingEvents, parentEvent }: Props) 
       {/* Timeline View */}
       <div className="relative">
         {/* Vertical timeline line */}
-        <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-purple-200" />
+        <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-rose-200" />
 
         <div className="space-y-8">
           {weddingEvents.map((event, index) => (
             <div key={event.id} className="relative pl-20">
               {/* Timeline dot and icon */}
               <div className="absolute left-0 flex items-center">
-                <div className="flex-shrink-0 w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-3xl shadow-lg">
+                <div className="flex-shrink-0 w-16 h-16 rounded-full bg-gradient-to-br from-rose-700 to-rose-900 flex items-center justify-center text-3xl shadow-lg">
                   {EVENT_ICONS[event.event_name] || '✨'}
                 </div>
               </div>

@@ -26,7 +26,7 @@ export function WeddingEventCard({ event, eventId, label, isFirst, isLast }: Pro
 
   return (
     <Link href={`/events/${eventId}/wedding-timeline/${event.id}`}>
-      <div className="rounded-lg border-2 border-purple-200 bg-white p-6 hover:shadow-lg hover:border-purple-400 transition-all cursor-pointer">
+      <div className="rounded-lg border-2 border-rose-200 bg-white p-6 hover:shadow-lg hover:border-rose-400 transition-all cursor-pointer">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-3 mb-2">

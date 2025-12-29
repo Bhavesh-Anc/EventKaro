@@ -143,10 +143,10 @@ export default async function EventDetailPage({
           {event.event_type === 'wedding' && (
             <Link
               href={`/events/${eventId}/wedding-timeline`}
-              className="rounded-md border-2 border-purple-500 bg-purple-50 p-4 text-center hover:bg-purple-100 block"
+              className="rounded-md border-2 border-rose-500 bg-rose-50 p-4 text-center hover:bg-rose-100 block"
             >
               <div className="text-2xl mb-2">💒</div>
-              <h4 className="font-medium text-purple-900">Wedding Timeline</h4>
+              <h4 className="font-medium text-rose-900">Wedding Timeline</h4>
             </Link>
           )}
           <Link
