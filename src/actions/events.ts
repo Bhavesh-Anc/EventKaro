@@ -61,12 +61,8 @@ export async function createEvent(formData: FormData) {
   revalidatePath('/dashboard');
   revalidatePath('/events');
 
-  // If wedding event, redirect to sub-event selection page
-  if (event && eventType === 'wedding') {
-    redirect(`/events/${event.id}/setup-timeline`);
-  }
-
-  redirect(event ? `/events/${event.id}` : '/dashboard');
+  // Redirect to dashboard after creating event
+  redirect('/dashboard');
 }
 
 export async function getOrganizationEvents(organizationId: string) {
