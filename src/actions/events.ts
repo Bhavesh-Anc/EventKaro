@@ -58,27 +58,15 @@ export async function createEvent(formData: FormData) {
     redirect('/dashboard');
   }
 
-  // If wedding event, automatically create default wedding sub-events
-  if (event && eventType === 'wedding') {
-    const weddingDate = new Date(startDate);
-
-    // Call the database function to create default events
-    const { error: weddingEventsError } = await supabase.rpc(
-      'create_default_wedding_events',
-      {
-        parent_id: event.id,
-        wedding_date: startDate.split('T')[0]
-      }
-    );
-
-    if (weddingEventsError) {
-      console.error('Error creating wedding sub-events:', weddingEventsError);
-    }
-  }
-
   revalidatePath('/dashboard');
   revalidatePath('/events');
-  redirect(event ? `/events/${event.id}/wedding-timeline` : '/dashboard');
+
+  // If wedding event, redirect to sub-event selection page
+  if (event && eventType === 'wedding') {
+    redirect(`/events/${event.id}/setup-timeline`);
+  }
+
+  redirect(event ? `/events/${event.id}` : '/dashboard');
 }
 
 export async function getOrganizationEvents(organizationId: string) {
