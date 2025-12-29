@@ -1,6 +1,8 @@
 import { getUserOrganizations } from '@/actions/organizations';
 import { createEvent } from '@/actions/events';
 import { redirect } from 'next/navigation';
+import { Heart, Calendar as CalendarIcon, Sparkles, Users } from 'lucide-react';
+import Link from 'next/link';
 
 export default async function NewEventPage() {
   const organizations = await getUserOrganizations();
@@ -12,219 +14,89 @@ export default async function NewEventPage() {
   const currentOrg = organizations[0];
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold tracking-tight">Create Event</h2>
-        <p className="text-muted-foreground mt-2">
-          Set up your event details and start selling tickets
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="mb-8 text-center">
+        <div className="flex justify-center mb-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-rose-700 to-rose-900 shadow-lg">
+            <Sparkles className="h-8 w-8 text-white" />
+          </div>
+        </div>
+        <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-rose-700 to-rose-900 bg-clip-text text-transparent">
+          Create Your Event
+        </h2>
+        <p className="text-gray-600 mt-2">
+          Choose your event type to get started
         </p>
       </div>
 
-      <form className="space-y-6">
-        <input type="hidden" name="organization_id" value={currentOrg.id} />
-
-        {/* Basic Info */}
-        <div className="rounded-lg border p-6 space-y-6">
-          <h3 className="text-lg font-semibold">Basic Information</h3>
-
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium mb-2">
-              Event Title *
-            </label>
-            <input
-              id="title"
-              name="title"
-              type="text"
-              required
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Summer Tech Conference 2025"
-            />
+      {/* Event Type Selection */}
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        {/* Wedding Card - Featured */}
+        <Link
+          href="/events/new/wedding"
+          className="group relative rounded-2xl border-2 border-rose-300 bg-gradient-to-br from-rose-50 to-amber-50 p-8 hover:shadow-xl hover:border-rose-500 transition-all cursor-pointer"
+        >
+          <div className="absolute top-4 right-4">
+            <span className="px-3 py-1 rounded-full bg-rose-600 text-white text-xs font-semibold">
+              RECOMMENDED
+            </span>
           </div>
-
-          <div>
-            <label htmlFor="slug" className="block text-sm font-medium mb-2">
-              URL Slug *
-            </label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">eventkaro.in/{currentOrg.slug}/</span>
-              <input
-                id="slug"
-                name="slug"
-                type="text"
-                pattern="[a-z0-9-]+"
-                className="flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="summer-tech-2025"
-              />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-rose-700 to-rose-900 shadow-lg mb-4">
+            <Heart className="h-8 w-8 text-white fill-white" />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">Wedding</h3>
+          <p className="text-gray-600 mb-4">
+            Plan your dream wedding with multi-event timeline, guest management, vendor tracking, and budget control
+          </p>
+          <div className="flex items-center gap-2 text-rose-700 font-semibold">
+            <span>Get Started</span>
+            <span className="group-hover:translate-x-1 transition-transform">→</span>
+          </div>
+          <div className="mt-4 pt-4 border-t border-rose-200">
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+              <div className="flex items-center gap-1">
+                <CalendarIcon className="h-3 w-3" />
+                <span>Multi-event</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                <span>Family hierarchy</span>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Leave empty to auto-generate from title
+          </div>
+        </Link>
+
+        {/* Other Events Card */}
+        <Link
+          href="/events/new/other"
+          className="group rounded-2xl border-2 border-gray-200 bg-white p-8 hover:shadow-xl hover:border-gray-400 transition-all cursor-pointer"
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 mb-4">
+            <CalendarIcon className="h-8 w-8 text-gray-600" />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">Other Events</h3>
+          <p className="text-gray-600 mb-4">
+            Create conferences, workshops, concerts, meetups, festivals, and other celebrations
+          </p>
+          <div className="flex items-center gap-2 text-gray-700 font-semibold">
+            <span>Continue</span>
+            <span className="group-hover:translate-x-1 transition-transform">→</span>
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <p className="text-xs text-gray-500">
+              Perfect for corporate events, parties, and gatherings
             </p>
           </div>
+        </Link>
+      </div>
 
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium mb-2">
-              Description *
-            </label>
-            <textarea
-              id="description"
-              name="description"
-              required
-              rows={5}
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Tell attendees what makes your event special..."
-            />
-          </div>
-
-          <div>
-            <label htmlFor="event_type" className="block text-sm font-medium mb-2">
-              Event Type *
-            </label>
-            <select
-              id="event_type"
-              name="event_type"
-              required
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="conference">Conference</option>
-              <option value="workshop">Workshop</option>
-              <option value="concert">Concert</option>
-              <option value="webinar">Webinar</option>
-              <option value="meetup">Meetup</option>
-              <option value="wedding">Wedding</option>
-              <option value="festival">Festival</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Date & Time */}
-        <div className="rounded-lg border p-6 space-y-6">
-          <h3 className="text-lg font-semibold">Date & Time</h3>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="start_date" className="block text-sm font-medium mb-2">
-                Start Date & Time *
-              </label>
-              <input
-                id="start_date"
-                name="start_date"
-                type="datetime-local"
-                required
-                className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div>
-              <label htmlFor="end_date" className="block text-sm font-medium mb-2">
-                End Date & Time *
-              </label>
-              <input
-                id="end_date"
-                name="end_date"
-                type="datetime-local"
-                required
-                className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Venue */}
-        <div className="rounded-lg border p-6 space-y-6">
-          <h3 className="text-lg font-semibold">Venue</h3>
-
-          <div>
-            <label htmlFor="venue_type" className="block text-sm font-medium mb-2">
-              Venue Type *
-            </label>
-            <select
-              id="venue_type"
-              name="venue_type"
-              required
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="physical">Physical Location</option>
-              <option value="online">Online Event</option>
-              <option value="hybrid">Hybrid (Physical + Online)</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="venue_name" className="block text-sm font-medium mb-2">
-              Venue Name
-            </label>
-            <input
-              id="venue_name"
-              name="venue_name"
-              type="text"
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Grand Hotel & Convention Center"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="venue_city" className="block text-sm font-medium mb-2">
-              City
-            </label>
-            <input
-              id="venue_city"
-              name="venue_city"
-              type="text"
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Mumbai"
-            />
-          </div>
-        </div>
-
-        {/* Capacity & Pricing */}
-        <div className="rounded-lg border p-6 space-y-6">
-          <h3 className="text-lg font-semibold">Capacity & Pricing</h3>
-
-          <div>
-            <label htmlFor="capacity" className="block text-sm font-medium mb-2">
-              Total Capacity
-            </label>
-            <input
-              id="capacity"
-              name="capacity"
-              type="number"
-              min="1"
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="500"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Leave empty for unlimited capacity
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              id="is_free"
-              name="is_free"
-              type="checkbox"
-              className="rounded border focus:ring-2 focus:ring-primary"
-            />
-            <label htmlFor="is_free" className="text-sm font-medium">
-              This is a free event
-            </label>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-3 pb-8">
-          <button
-            formAction={createEvent}
-            className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Create Event
-          </button>
-          <a
-            href="/dashboard"
-            className="rounded-md border px-6 py-2.5 text-sm font-medium hover:bg-muted"
-          >
-            Cancel
-          </a>
-        </div>
-      </form>
+      {/* Back Link */}
+      <div className="text-center">
+        <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 text-sm">
+          ← Back to Dashboard
+        </Link>
+      </div>
     </div>
   );
 }

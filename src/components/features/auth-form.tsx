@@ -99,7 +99,7 @@ export function AuthForm({ type, action }: AuthFormProps) {
 
         <Button
           type="submit"
-          className="w-full"
+          className="w-full bg-gradient-to-r from-rose-700 to-rose-900 hover:from-rose-800 hover:to-rose-950"
           disabled={isPending}
         >
           {isPending ? (
