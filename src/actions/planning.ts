@@ -602,7 +602,7 @@ export async function submitGuestRSVP(formData: FormData) {
 
   if (existingGuest) {
     // Update existing guest
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('guests')
       .update({
         first_name: firstName,
@@ -636,11 +636,18 @@ export async function submitGuestRSVP(formData: FormData) {
         accommodation_preferences: accommodationPreferences,
         updated_at: new Date().toISOString(),
       })
-      .eq('invitation_token', invitationToken);
+      .eq('invitation_token', invitationToken)
+      .select();
 
     if (error) {
       console.error('Error updating guest RSVP:', error);
-      throw new Error('Failed to submit RSVP');
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      throw new Error(`Failed to submit RSVP: ${error.message || 'Database error'}`);
+    }
+
+    if (!data || data.length === 0) {
+      console.error('No rows updated for invitation token:', invitationToken);
+      throw new Error('Failed to update RSVP - no matching guest found');
     }
 
     // Mark invitation as responded
