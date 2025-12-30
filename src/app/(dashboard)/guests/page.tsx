@@ -2,8 +2,12 @@ import { getUser } from '@/actions/auth';
 import { getUserOrganizations } from '@/actions/organizations';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { UserPlus, Search, Filter, Download } from 'lucide-react';
+import { GuestsClient } from '@/components/features/guests-client';
+import type { FamilyCardData } from '@/components/features/family-card';
+import type { FamilyMember } from '@/components/features/family-detail-drawer';
+import type { IndividualGuest } from '@/components/features/individuals-view';
+import type { LogisticsGuest, HotelAssignment, PickupAssignment } from '@/components/features/logistics-view';
+import { calculateGuestCosts } from '@/lib/guest-calculations';
 
 export default async function GuestsPage() {
   const user = await getUser();
@@ -16,142 +20,193 @@ export default async function GuestsPage() {
   const currentOrg = organizations[0];
   const supabase = await createClient();
 
-  // Fetch all guests for this organization
-  const { data: guests, count } = await supabase
-    .from('guests')
-    .select('*', { count: 'exact' })
+  // Get wedding event for this organization
+  const { data: weddingEvents } = await supabase
+    .from('events')
+    .select('id')
     .eq('organization_id', currentOrg.id)
-    .order('created_at', { ascending: false });
+    .eq('event_type', 'wedding')
+    .limit(1);
 
-  const confirmedGuests = guests?.filter((g) => g.rsvp_status === 'confirmed').length || 0;
-  const pendingGuests = guests?.filter((g) => g.rsvp_status === 'pending').length || 0;
-  const declinedGuests = guests?.filter((g) => g.rsvp_status === 'declined').length || 0;
+  const eventId = weddingEvents?.[0]?.id;
+
+  if (!eventId) {
+    redirect('/events/new');
+  }
+
+  // Fetch all family groups with their data
+  const { data: familyGroups } = await supabase
+    .from('wedding_family_groups')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('family_name');
+
+  // Fetch all guests for this event
+  const { data: allGuests } = await supabase
+    .from('guests')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('name');
+
+  // Transform family groups to FamilyCardData
+  const families: FamilyCardData[] = (familyGroups || []).map((fg: any) => ({
+    id: fg.id,
+    family_name: fg.family_name,
+    family_side: fg.family_side,
+    total_members: fg.total_members || 0,
+    members_confirmed: fg.members_confirmed || 0,
+    members_pending: fg.members_pending || 0,
+    members_declined: fg.members_declined || 0,
+    is_outstation: fg.is_outstation || false,
+    rooms_required: fg.rooms_required || 0,
+    rooms_allocated: fg.rooms_allocated || 0,
+    pickup_required: fg.pickup_required || false,
+    pickup_assigned: fg.pickup_assigned || false,
+    is_vip: fg.is_vip || false,
+    primary_contact_name: fg.primary_contact_name,
+    primary_contact_phone: fg.primary_contact_phone,
+  }));
+
+  // Build family members map
+  const familyMembers: Record<string, FamilyMember[]> = {};
+  (allGuests || []).forEach((guest: any) => {
+    if (guest.guest_group_id) {
+      if (!familyMembers[guest.guest_group_id]) {
+        familyMembers[guest.guest_group_id] = [];
+      }
+      familyMembers[guest.guest_group_id].push({
+        id: guest.id,
+        name: guest.name || `${guest.first_name} ${guest.last_name || ''}`.trim(),
+        age: guest.age,
+        rsvp_status: guest.rsvp_status || 'pending',
+        dietary_restrictions: guest.dietary_restrictions,
+        is_elderly: guest.is_elderly || false,
+        is_child: guest.is_child || false,
+        is_vip: guest.is_vip || false,
+      });
+    }
+  });
+
+  // Build individuals view data
+  const individuals: IndividualGuest[] = (allGuests || []).map((guest: any) => {
+    const family = familyGroups?.find((fg: any) => fg.id === guest.guest_group_id);
+    return {
+      id: guest.id,
+      name: guest.name || `${guest.first_name} ${guest.last_name || ''}`.trim(),
+      family_name: family?.family_name || 'Unknown',
+      family_side: family?.family_side || 'bride',
+      rsvp_status: guest.rsvp_status || 'pending',
+      is_outstation: guest.is_outstation || false,
+      hotel_assigned: family?.rooms_allocated > 0,
+      pickup_assigned: family?.pickup_assigned || false,
+      is_vip: guest.is_vip || false,
+      is_elderly: guest.is_elderly || false,
+      is_child: guest.is_child || false,
+      dietary_restrictions: guest.dietary_restrictions,
+      phone: guest.phone,
+    };
+  });
+
+  // Build logistics view data
+  const hotelAssignments: HotelAssignment[] = [];
+  const pickupAssignments: PickupAssignment[] = [];
+  const guestsNeedingHotel: LogisticsGuest[] = [];
+  const guestsNeedingPickup: LogisticsGuest[] = [];
+
+  // Group by hotel
+  const hotelMap = new Map<string, any[]>();
+  (familyGroups || []).forEach((fg: any) => {
+    if (fg.hotel_name && fg.rooms_allocated > 0) {
+      if (!hotelMap.has(fg.hotel_name)) {
+        hotelMap.set(fg.hotel_name, []);
+      }
+      const members = familyMembers[fg.id] || [];
+      members.forEach((member) => {
+        hotelMap.get(fg.hotel_name)!.push({
+          id: member.id,
+          name: member.name,
+          family_name: fg.family_name,
+          family_id: fg.id,
+          family_side: fg.family_side,
+        });
+      });
+    }
+  });
+
+  hotelMap.forEach((guests, hotelName) => {
+    hotelAssignments.push({
+      hotel_name: hotelName,
+      guests,
+      rooms_allocated: guests.length,
+      total_capacity: guests.length,
+    });
+  });
+
+  // Find guests needing hotel
+  (familyGroups || []).forEach((fg: any) => {
+    if (fg.is_outstation && fg.rooms_required > fg.rooms_allocated) {
+      const members = familyMembers[fg.id] || [];
+      members.forEach((member) => {
+        guestsNeedingHotel.push({
+          id: member.id,
+          name: member.name,
+          family_name: fg.family_name,
+          family_id: fg.id,
+          family_side: fg.family_side,
+          phone: fg.primary_contact_phone,
+        });
+      });
+    }
+  });
+
+  // Find guests needing pickup
+  (familyGroups || []).forEach((fg: any) => {
+    if (fg.pickup_required && !fg.pickup_assigned) {
+      const members = familyMembers[fg.id] || [];
+      members.forEach((member) => {
+        guestsNeedingPickup.push({
+          id: member.id,
+          name: member.name,
+          family_name: fg.family_name,
+          family_id: fg.id,
+          family_side: fg.family_side,
+          phone: fg.primary_contact_phone,
+        });
+      });
+    }
+  });
+
+  // Calculate cost impact per family
+  const costImpact: Record<string, any> = {};
+  families.forEach((family) => {
+    const memberCount = family.total_members;
+    const costs = calculateGuestCosts(memberCount, {
+      cateringPerHead: 1500,
+      roomsNeeded: family.rooms_required,
+      roomCostPerNight: 4000,
+      transportSeats: family.pickup_required ? memberCount : 0,
+      transportCostPerSeat: 500,
+    });
+    costImpact[family.id] = costs;
+  });
+
+  // RSVP history (placeholder - would need a separate table)
+  const rsvpHistory: Record<string, any[]> = {};
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Guest Management</h1>
-          <p className="text-gray-600 mt-1">Manage all your wedding guests</p>
-        </div>
-        <Link
-          href="/events"
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-medium hover:from-rose-800 hover:to-rose-950 flex items-center gap-2"
-        >
-          <UserPlus className="h-5 w-5" />
-          Add Guest
-        </Link>
-      </div>
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-xl bg-white border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600">Total Guests</h3>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{count || 0}</p>
-        </div>
-        <div className="rounded-xl bg-white border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600">Confirmed</h3>
-          <p className="mt-2 text-3xl font-bold text-green-600">{confirmedGuests}</p>
-        </div>
-        <div className="rounded-xl bg-white border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600">Pending</h3>
-          <p className="mt-2 text-3xl font-bold text-amber-600">{pendingGuests}</p>
-        </div>
-        <div className="rounded-xl bg-white border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600">Declined</h3>
-          <p className="mt-2 text-3xl font-bold text-red-600">{declinedGuests}</p>
-        </div>
-      </div>
-
-      {/* Actions Bar */}
-      <div className="rounded-xl bg-white border border-gray-200 p-4 shadow-sm">
-        <div className="flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex gap-3 flex-1">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search guests..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
-              />
-            </div>
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filter
-            </button>
-          </div>
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Export
-          </button>
-        </div>
-      </div>
-
-      {/* Guest List */}
-      <div className="rounded-xl bg-white border border-gray-200 shadow-sm">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">All Guests</h3>
-
-          {!guests || guests.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">👥</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No guests yet</h3>
-              <p className="text-gray-600 mb-6">Add guests to your events to see them here</p>
-              <Link
-                href="/events"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-medium hover:from-rose-800 hover:to-rose-950"
-              >
-                <UserPlus className="h-5 w-5" />
-                Go to Events
-              </Link>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Name</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Email</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Phone</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Side</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {guests.map((guest) => (
-                    <tr key={guest.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 font-medium text-gray-900">{guest.name}</td>
-                      <td className="py-3 px-4 text-gray-600">{guest.email || '-'}</td>
-                      <td className="py-3 px-4 text-gray-600">{guest.phone || '-'}</td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            guest.rsvp_status === 'confirmed'
-                              ? 'bg-green-100 text-green-700'
-                              : guest.rsvp_status === 'declined'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          {guest.rsvp_status || 'pending'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">
-                        {guest.family_side ? (
-                          <span className="capitalize">{guest.family_side}</span>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+    <GuestsClient
+      families={families}
+      individuals={individuals}
+      logistics={{
+        hotelAssignments,
+        pickupAssignments,
+        guestsNeedingHotel,
+        guestsNeedingPickup,
+      }}
+      familyMembers={familyMembers}
+      rsvpHistory={rsvpHistory}
+      costImpact={costImpact}
+      eventId={eventId}
+    />
   );
 }

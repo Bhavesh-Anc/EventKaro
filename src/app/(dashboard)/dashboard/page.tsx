@@ -6,10 +6,17 @@ import { WeddingStatCards } from '@/components/features/wedding-stat-cards';
 import { WeddingQuickActions } from '@/components/features/wedding-quick-actions';
 import { DashboardWeddingTimeline } from '@/components/features/dashboard-wedding-timeline';
 import { WeddingGuestOverview } from '@/components/features/wedding-guest-overview';
-import { WeddingBudgetTracker } from '@/components/features/wedding-budget-tracker';
+import { DashboardBudgetSnapshot } from '@/components/features/dashboard-budget-snapshot';
 import { WeddingVendorList } from '@/components/features/wedding-vendor-list';
 import { WeddingTaskList } from '@/components/features/wedding-task-list';
 import { differenceInDays } from 'date-fns';
+import type { CategoryBudget } from '@/lib/budget-calculations';
+import {
+  aggregateBudgetSummary,
+  calculateTopCostDrivers,
+  generateBudgetAlerts,
+  calculateGuestCostPerUnit,
+} from '@/lib/budget-calculations';
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -69,22 +76,113 @@ export default async function DashboardPage() {
 
   const tasksCompleted = tasks?.filter((t) => t.completed).length || 0;
 
-  // Calculate budget stats from wedding events if available
-  let budgetUsed = 0;
-  let totalBudget = 0;
-  let totalSpent = 0;
-  const budgetCategories: any[] = [];
+  // Fetch budget data for Budget Snapshot widget
+  let budgetSummary: any = null;
+  let costDrivers: any[] = [];
+  let budgetAlerts: any[] = [];
+  let guestCostPerUnit = 0;
+  let vendorsPaid = 0;
+  let vendorsPending = 0;
+  let totalPendingAmount = 0;
+  let budgetUsed = 0; // Still needed for stat cards
 
   if (weddingEvent) {
-    const { data: eventBudgets } = await supabase
+    // Fetch all budget entries from wedding_event_budgets
+    const { data: budgetEntries } = await supabase
       .from('wedding_event_budgets')
-      .select('*')
-      .eq('parent_event_id', weddingEvent.id);
+      .select(`
+        *,
+        wedding_events!inner(id, parent_event_id, event_name, custom_event_name),
+        vendors:vendor_profiles(id, business_name, category)
+      `)
+      .eq('wedding_events.parent_event_id', weddingEvent.id);
 
-    if (eventBudgets && eventBudgets.length > 0) {
-      totalBudget = eventBudgets.reduce((sum, b) => sum + (b.allocated_amount || 0), 0);
-      totalSpent = eventBudgets.reduce((sum, b) => sum + (b.spent_amount || 0), 0);
-      budgetUsed = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+    if (budgetEntries && budgetEntries.length > 0) {
+      // Aggregate by category
+      const categoryMap = new Map<string, CategoryBudget>();
+
+      budgetEntries.forEach((entry: any) => {
+        const category = entry.category;
+        const existing = categoryMap.get(category) || {
+          category,
+          planned: 0,
+          committed: 0,
+          paid: 0,
+          pending: 0,
+          delta: 0,
+          deltaPercentage: 0,
+          isOverBudget: false,
+        };
+
+        existing.planned += entry.planned_amount_inr || 0;
+        existing.committed += entry.committed_amount_inr || 0;
+        existing.paid += entry.paid_amount_inr || 0;
+        existing.pending += entry.pending_amount_inr || 0;
+
+        categoryMap.set(category, existing);
+      });
+
+      // Calculate deltas
+      const categories: CategoryBudget[] = Array.from(categoryMap.values()).map((cat) => {
+        const delta = cat.committed - cat.planned;
+        const deltaPercentage = cat.planned > 0 ? (delta / cat.planned) * 100 : 0;
+        return {
+          ...cat,
+          delta,
+          deltaPercentage,
+          isOverBudget: cat.committed > cat.planned,
+        };
+      });
+
+      // Set total budget (₹42L in paise - would come from settings in production)
+      const totalBudgetInPaise = 4200000 * 100;
+
+      // Calculate budget summary
+      budgetSummary = aggregateBudgetSummary(categories, totalBudgetInPaise);
+
+      // Calculate cost drivers (top 4)
+      costDrivers = calculateTopCostDrivers(categories, 4);
+
+      // Calculate guest-driven cost
+      const cateringBudget = categories.find((c) => c.category === 'catering')?.committed || 0;
+      const accommodationBudget = categories.find((c) => c.category === 'accommodation')?.committed || 0;
+      const transportBudget = categories.find((c) => c.category === 'transportation')?.committed || 0;
+      guestCostPerUnit = calculateGuestCostPerUnit(
+        cateringBudget,
+        accommodationBudget,
+        transportBudget,
+        totalGuests || 1
+      );
+
+      // Calculate vendor payment stats
+      const vendorEntries = budgetEntries.filter((e: any) => e.vendor_id);
+      vendorsPaid = vendorEntries.filter((e: any) => e.pending_amount_inr === 0 && e.paid_amount_inr > 0).length;
+      vendorsPending = vendorEntries.filter((e: any) => e.pending_amount_inr > 0).length;
+      totalPendingAmount = budgetEntries.reduce((sum: number, e: any) => sum + (e.pending_amount_inr || 0), 0);
+
+      // Calculate late RSVP stats (guests confirmed after a certain date)
+      const lateRSVPCount = 0; // TODO: Calculate from guest RSVP timestamps
+      const lateRSVPCost = 0; // TODO: Calculate additional catering cost
+
+      // Count unpaid vendors near event date
+      const unpaidVendorsCount = vendorsPending;
+      const unpaidAmount = totalPendingAmount;
+
+      // Generate alerts
+      budgetAlerts = generateBudgetAlerts(
+        budgetSummary,
+        categories,
+        lateRSVPCount,
+        lateRSVPCost,
+        unpaidVendorsCount,
+        unpaidAmount,
+        daysToWedding
+      );
+
+      // Calculate budgetUsed for stat cards
+      budgetUsed = totalBudgetInPaise > 0
+        ? Math.round((budgetSummary.committed / totalBudgetInPaise) * 100)
+        : 0;
     }
   }
 
@@ -209,12 +307,18 @@ export default async function DashboardPage() {
 
         {/* Right Column */}
         <div className="space-y-6">
-          <WeddingBudgetTracker
-            categories={budgetCategories}
-            totalBudget={totalBudget}
-            totalSpent={totalSpent}
-            eventId={weddingEvent?.id}
-          />
+          {budgetSummary && (
+            <DashboardBudgetSnapshot
+              summary={budgetSummary}
+              costDrivers={costDrivers}
+              alerts={budgetAlerts}
+              guestCostPerUnit={guestCostPerUnit}
+              vendorsPaid={vendorsPaid}
+              vendorsPending={vendorsPending}
+              totalPendingAmount={totalPendingAmount}
+              eventId={weddingEvent?.id}
+            />
+          )}
           <WeddingVendorList vendors={vendors} eventId={weddingEvent?.id} />
           <WeddingTaskList tasks={recentTasks} eventId={weddingEvent?.id} />
         </div>
