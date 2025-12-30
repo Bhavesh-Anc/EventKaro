@@ -7,6 +7,7 @@ import { FamilyDetailDrawer, type FamilyMember, type RSVPHistoryEntry } from '@/
 import { IndividualsView, type IndividualGuest } from '@/components/features/individuals-view';
 import { LogisticsView, type LogisticsGuest, type HotelAssignment, type PickupAssignment } from '@/components/features/logistics-view';
 import { CSVImportModal } from '@/components/features/csv-import-modal';
+import { AddFamilyModal } from '@/components/features/add-family-modal';
 import { useRouter } from 'next/navigation';
 
 type ViewMode = 'families' | 'individuals' | 'logistics';
@@ -43,6 +44,7 @@ export function GuestsClient({
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showCSVImport, setShowCSVImport] = useState(false);
+  const [showAddFamily, setShowAddFamily] = useState(false);
 
   const selectedFamily = families.find((f) => f.id === selectedFamilyId);
   const selectedMembers = selectedFamilyId ? (familyMembers[selectedFamilyId] || []) : [];
@@ -91,7 +93,10 @@ export function GuestsClient({
             <Upload className="h-5 w-5" />
             Import CSV
           </button>
-          <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-semibold hover:from-rose-800 hover:to-rose-950 flex items-center gap-2 transition-all">
+          <button
+            onClick={() => setShowAddFamily(true)}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-semibold hover:from-rose-800 hover:to-rose-950 flex items-center gap-2 transition-all"
+          >
             <Plus className="h-5 w-5" />
             Add Family
           </button>
@@ -237,7 +242,10 @@ export function GuestsClient({
               <p className="text-gray-600 mb-6">
                 Start by adding your first family to track RSVPs and logistics
               </p>
-              <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-700 to-rose-900 text-white rounded-lg hover:from-rose-800 hover:to-rose-950 font-semibold transition-all">
+              <button
+                onClick={() => setShowAddFamily(true)}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-700 to-rose-900 text-white rounded-lg hover:from-rose-800 hover:to-rose-950 font-semibold transition-all"
+              >
                 <Plus className="h-5 w-5" />
                 Add First Family
               </button>
@@ -304,6 +312,17 @@ export function GuestsClient({
           onClose={() => setShowCSVImport(false)}
           onSuccess={() => {
             setShowCSVImport(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* Add Family Modal */}
+      {showAddFamily && eventId && (
+        <AddFamilyModal
+          eventId={eventId}
+          onClose={() => setShowAddFamily(false)}
+          onSuccess={() => {
             router.refresh();
           }}
         />
