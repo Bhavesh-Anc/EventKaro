@@ -4,6 +4,43 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
+/**
+ * Parse a CSV line properly handling quoted fields
+ * Handles: commas inside quotes, escaped quotes, newlines in quotes
+ */
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote
+        current += '"';
+        i++; // Skip next quote
+      } else {
+        // Toggle quote mode
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // Field separator
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  // Add the last field
+  result.push(current.trim());
+
+  return result;
+}
+
 export async function addGuest(formData: FormData) {
   const supabase = await createClient();
 
@@ -334,7 +371,7 @@ export async function importGuestsFromCSV(formData: FormData) {
       return { error: 'CSV file is empty or invalid', success: false };
     }
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase());
     const requiredHeaders = ['first_name'];
 
     for (const required of requiredHeaders) {
@@ -361,7 +398,7 @@ export async function importGuestsFromCSV(formData: FormData) {
 
     // Process each row
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map((v) => v.trim());
+      const values = parseCSVLine(lines[i]);
       const row: any = {};
 
       headers.forEach((header, index) => {
@@ -793,7 +830,7 @@ export async function importFamiliesFromCSV(formData: FormData) {
       return { error: 'CSV file is empty or invalid', success: false };
     }
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase());
     const requiredHeaders = ['family_name', 'family_side', 'member_name'];
 
     for (const required of requiredHeaders) {
@@ -812,7 +849,7 @@ export async function importFamiliesFromCSV(formData: FormData) {
 
     // Process each row
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map((v) => v.trim());
+      const values = parseCSVLine(lines[i]);
       const row: any = {};
 
       headers.forEach((header, index) => {
