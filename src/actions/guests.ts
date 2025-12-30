@@ -622,9 +622,9 @@ export async function updateFamilyMemberRSVP(
     return { error: 'Failed to update RSVP' };
   }
 
-  // Update family member counts
-  if (data.guest_group_id) {
-    await updateFamilyMemberCounts(data.guest_group_id);
+  // Update family member counts (for wedding families linked via family_group_name)
+  if (data.family_group_name && data.event_id) {
+    await updateFamilyMemberCounts(data.family_group_name, data.event_id);
   }
 
   revalidatePath('/guests');
@@ -888,7 +888,6 @@ export async function importFamiliesFromCSV(formData: FormData) {
             family_side: familySide,
             primary_contact_name: row.primary_contact_name || null,
             primary_contact_phone: row.primary_contact_phone || null,
-            is_vip: row.is_vip === 'true' || row.is_vip === '1',
             is_outstation: row.is_outstation === 'true' || row.is_outstation === '1',
             rooms_required: parseInt(row.rooms_required) || 0,
             pickup_required: row.pickup_required === 'true' || row.pickup_required === '1',
@@ -912,20 +911,21 @@ export async function importFamiliesFromCSV(formData: FormData) {
         continue;
       }
 
-      // Add family member
+      // Add family member - parse name into first_name and last_name
+      const nameParts = (row.member_name || '').trim().split(' ');
+      const firstName = nameParts[0] || 'Unknown';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
       const { error: memberError } = await supabase
         .from('guests')
         .insert({
           event_id: eventId,
-          guest_group_id: familyId,
-          family_group_name: row.family_name, // Set family_group_name for trigger compatibility
+          family_group_name: row.family_name, // Links to wedding_family_groups via trigger
           family_side: row.family_side || null,
-          name: row.member_name,
-          age: parseInt(row.member_age) || null,
+          first_name: firstName,
+          last_name: lastName,
           is_elderly: row.is_elderly === 'true' || row.is_elderly === '1',
           is_child: row.is_child === 'true' || row.is_child === '1',
-          is_vip: row.is_vip === 'true' || row.is_vip === '1',
-          dietary_restrictions: row.dietary_restrictions || null,
           rsvp_status: 'pending',
         });
 
@@ -937,9 +937,9 @@ export async function importFamiliesFromCSV(formData: FormData) {
       }
     }
 
-    // Update member counts for all families
-    for (const familyId of familyMap.values()) {
-      await updateFamilyMemberCounts(familyId);
+    // Update member counts for all families (using family name and event ID)
+    for (const [familyName] of familyMap.entries()) {
+      await updateFamilyMemberCounts(familyName, eventId);
     }
 
     revalidatePath('/guests');
