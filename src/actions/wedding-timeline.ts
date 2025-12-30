@@ -58,7 +58,6 @@ export async function createWeddingSubEvents(formData: FormData) {
 
     eventsToCreate.push({
       parent_event_id: parentEventId,
-      organization_id: parentEvent.organization_id,
       event_name: eventId,
       custom_event_name: null,
       description: `${template.name} ceremony`,
@@ -87,7 +86,6 @@ export async function createWeddingSubEvents(formData: FormData) {
 
     eventsToCreate.push({
       parent_event_id: parentEventId,
-      organization_id: parentEvent.organization_id,
       event_name: 'custom',
       custom_event_name: name,
       description: description || `${name} ceremony`,
