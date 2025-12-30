@@ -8,7 +8,7 @@ export interface FamilyMember {
   id: string;
   name: string;
   age?: number;
-  rsvp_status: 'pending' | 'confirmed' | 'declined' | 'maybe';
+  rsvp_status: 'pending' | 'accepted' | 'declined' | 'maybe' | 'no_response';
   dietary_restrictions?: string;
   is_elderly: boolean;
   is_child: boolean;

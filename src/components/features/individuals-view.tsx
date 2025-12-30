@@ -7,7 +7,7 @@ export interface IndividualGuest {
   name: string;
   family_name: string;
   family_side: 'bride' | 'groom';
-  rsvp_status: 'pending' | 'confirmed' | 'declined' | 'maybe';
+  rsvp_status: 'pending' | 'accepted' | 'declined' | 'maybe' | 'no_response';
   is_outstation: boolean;
   hotel_assigned: boolean;
   pickup_assigned: boolean;
