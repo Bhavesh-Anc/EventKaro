@@ -154,3 +154,56 @@ export async function getUserEvents() {
 
   return data;
 }
+
+/**
+ * Get current wedding event info for the logged-in user
+ * Used by sidebar and other components that need wedding date
+ */
+export async function getCurrentWedding() {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return null;
+  }
+
+  // Get user's organizations
+  const { data: memberships } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id);
+
+  if (!memberships || memberships.length === 0) {
+    return null;
+  }
+
+  const organizationIds = memberships.map((m) => m.organization_id);
+
+  // Get wedding event
+  const { data: wedding, error } = await supabase
+    .from('events')
+    .select('id, title, start_date, venue_name, venue_city')
+    .in('organization_id', organizationIds)
+    .eq('event_type', 'wedding')
+    .is('deleted_at', null)
+    .limit(1)
+    .single();
+
+  if (error || !wedding) {
+    return null;
+  }
+
+  // Calculate days remaining
+  const weddingDate = new Date(wedding.start_date);
+  const today = new Date();
+  const daysRemaining = Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  return {
+    id: wedding.id,
+    title: wedding.title,
+    date: wedding.start_date,
+    venueName: wedding.venue_name,
+    venueCity: wedding.venue_city,
+    daysRemaining: Math.max(0, daysRemaining),
+  };
+}

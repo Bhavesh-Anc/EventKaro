@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { format } from 'date-fns';
 import {
   Home,
   Users,
@@ -11,6 +12,19 @@ import {
   ListTodo,
   Settings
 } from 'lucide-react';
+
+interface WeddingInfo {
+  id: string;
+  title: string;
+  date: string;
+  venueName: string | null;
+  venueCity: string | null;
+  daysRemaining: number;
+}
+
+interface Props {
+  wedding: WeddingInfo | null;
+}
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -30,7 +44,7 @@ const hiddenOnRoutes = [
   '/organizations/new',
 ];
 
-export function WeddingSidebar() {
+export function WeddingSidebar({ wedding }: Props) {
   const pathname = usePathname();
 
   // Don't show sidebar on certain pages (like create event flow)
@@ -38,6 +52,19 @@ export function WeddingSidebar() {
   if (shouldHide) {
     return null;
   }
+
+  // Format wedding date
+  const formattedDate = wedding?.date
+    ? format(new Date(wedding.date), 'd MMM yyyy')
+    : 'Not set';
+
+  // Get days remaining text
+  const getDaysText = () => {
+    if (!wedding) return '';
+    if (wedding.daysRemaining === 0) return "It's today!";
+    if (wedding.daysRemaining === 1) return '1 day remaining';
+    return `${wedding.daysRemaining} days remaining`;
+  };
 
   return (
     <div className="flex h-screen w-64 flex-col bg-white border-r border-gray-200">
@@ -78,11 +105,27 @@ export function WeddingSidebar() {
       </nav>
 
       {/* Wedding Date Card */}
-      <div className="m-3 rounded-lg bg-amber-50 border border-amber-200 p-4">
-        <p className="text-xs font-medium text-amber-900 mb-1">Wedding Date</p>
-        <p className="text-lg font-bold text-amber-900">18 Feb 2025</p>
-        <p className="text-xs text-amber-700 mt-1">45 days remaining</p>
-      </div>
+      {wedding ? (
+        <div className="m-3 rounded-lg bg-amber-50 border border-amber-200 p-4">
+          <p className="text-xs font-medium text-amber-900 mb-1">Wedding Date</p>
+          <p className="text-lg font-bold text-amber-900">{formattedDate}</p>
+          <p className="text-xs text-amber-700 mt-1">{getDaysText()}</p>
+          {wedding.venueCity && (
+            <p className="text-xs text-amber-600 mt-1">📍 {wedding.venueCity}</p>
+          )}
+        </div>
+      ) : (
+        <div className="m-3 rounded-lg bg-gray-50 border border-gray-200 p-4">
+          <p className="text-xs font-medium text-gray-600 mb-1">Wedding Date</p>
+          <p className="text-sm text-gray-500 italic">No wedding created yet</p>
+          <Link
+            href="/events/new"
+            className="text-xs text-rose-600 hover:text-rose-700 font-semibold mt-2 inline-block"
+          >
+            Create Wedding →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
