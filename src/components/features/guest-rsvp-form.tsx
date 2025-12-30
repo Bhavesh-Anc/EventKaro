@@ -19,8 +19,8 @@ export function GuestRSVPForm({
 
   const statuses = [
     { value: 'pending', label: 'Pending', color: 'bg-gray-100 text-gray-800' },
-    { value: 'attending', label: 'Attending', color: 'bg-green-100 text-green-800' },
-    { value: 'not_attending', label: 'Not Attending', color: 'bg-red-100 text-red-800' },
+    { value: 'accepted', label: 'Attending', color: 'bg-green-100 text-green-800' },
+    { value: 'declined', label: 'Not Attending', color: 'bg-red-100 text-red-800' },
     { value: 'maybe', label: 'Maybe', color: 'bg-yellow-100 text-yellow-800' },
     { value: 'no_response', label: 'No Response', color: 'bg-gray-100 text-gray-800' },
   ];

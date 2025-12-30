@@ -64,7 +64,7 @@ export default async function DashboardPage() {
     .select('rsvp_status', { count: 'exact' })
     .eq('organization_id', currentOrg.id);
 
-  const confirmedGuests = guests?.filter((g) => g.rsvp_status === 'confirmed').length || 0;
+  const confirmedGuests = guests?.filter((g) => g.rsvp_status === 'accepted').length || 0;
   const pendingGuests = guests?.filter((g) => g.rsvp_status === 'pending').length || 0;
   const declinedGuests = guests?.filter((g) => g.rsvp_status === 'declined').length || 0;
 

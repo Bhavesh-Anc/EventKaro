@@ -153,15 +153,15 @@ export async function getGuestStats(eventId: string) {
 
   const stats = {
     total: guests.length,
-    attending: guests.filter((g) => g.rsvp_status === 'attending').length,
-    notAttending: guests.filter((g) => g.rsvp_status === 'not_attending').length,
+    attending: guests.filter((g) => g.rsvp_status === 'accepted').length,
+    notAttending: guests.filter((g) => g.rsvp_status === 'declined').length,
     pending: guests.filter((g) => g.rsvp_status === 'pending').length,
     maybe: guests.filter((g) => g.rsvp_status === 'maybe').length,
   };
 
   // Count plus ones
   const plusOnesAttending = guests.filter(
-    (g) => g.plus_one_rsvp === 'attending'
+    (g) => g.plus_one_rsvp === 'accepted'
   ).length;
 
   return {
@@ -701,7 +701,7 @@ async function updateFamilyMemberCounts(familyId: string) {
 
   if (!members) return;
 
-  const confirmed = members.filter((m) => m.rsvp_status === 'confirmed').length;
+  const confirmed = members.filter((m) => m.rsvp_status === 'accepted').length;
   const pending = members.filter((m) => m.rsvp_status === 'pending').length;
   const declined = members.filter((m) => m.rsvp_status === 'declined').length;
 

@@ -171,7 +171,7 @@ export function FamilyDetailDrawer({
                     <div>
                       <span
                         className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${
-                          member.rsvp_status === 'confirmed'
+                          member.rsvp_status === 'accepted'
                             ? 'bg-green-100 text-green-800'
                             : member.rsvp_status === 'declined'
                             ? 'bg-red-100 text-red-800'

@@ -110,7 +110,7 @@ export function IndividualsView({ guests, onGuestClick }: Props) {
                 {/* RSVP Status */}
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-1.5">
-                    {guest.rsvp_status === 'confirmed' && (
+                    {guest.rsvp_status === 'accepted' && (
                       <>
                         <CheckCircle2 className="h-4 w-4 text-green-600" />
                         <span className="text-sm font-semibold text-green-700">Confirmed</span>
