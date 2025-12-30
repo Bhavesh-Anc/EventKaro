@@ -504,7 +504,6 @@ export async function createFamily(formData: FormData) {
   const event_id = formData.get('event_id') as string;
   const primary_contact_name = formData.get('primary_contact_name') as string;
   const primary_contact_phone = formData.get('primary_contact_phone') as string;
-  const is_vip = formData.get('is_vip') === 'true';
 
   if (!family_name || !family_side || !event_id) {
     return { error: 'Family name, side, and event are required' };
@@ -516,9 +515,8 @@ export async function createFamily(formData: FormData) {
       event_id,
       family_name,
       family_side,
-      primary_contact_name,
-      primary_contact_phone,
-      is_vip,
+      primary_contact_name: primary_contact_name || null,
+      primary_contact_phone: primary_contact_phone || null,
     })
     .select()
     .single();

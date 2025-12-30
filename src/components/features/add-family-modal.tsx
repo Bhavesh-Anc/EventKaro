@@ -95,7 +95,6 @@ export function AddFamilyModal({ eventId, onClose, onSuccess }: Props) {
               <option value="">Select side</option>
               <option value="bride">Bride's Side</option>
               <option value="groom">Groom's Side</option>
-              <option value="common">Common</option>
             </select>
           </div>
 
@@ -121,19 +120,6 @@ export function AddFamilyModal({ eventId, onClose, onSuccess }: Props) {
               placeholder="e.g., +91 98765 43210"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
             />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="is_vip"
-              name="is_vip"
-              value="true"
-              className="h-4 w-4 text-rose-600 rounded focus:ring-rose-500"
-            />
-            <label htmlFor="is_vip" className="text-sm text-gray-700">
-              Mark as VIP family
-            </label>
           </div>
 
           {/* Actions */}
