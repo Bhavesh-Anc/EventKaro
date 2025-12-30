@@ -14,7 +14,6 @@ export interface IndividualGuest {
   is_vip: boolean;
   is_elderly: boolean;
   is_child: boolean;
-  dietary_restrictions?: string;
   phone?: string;
 }
 
@@ -188,11 +187,6 @@ export function IndividualsView({ guests, onGuestClick }: Props) {
                     {guest.is_child && (
                       <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-semibold">
                         Child
-                      </span>
-                    )}
-                    {guest.dietary_restrictions && (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
-                        {guest.dietary_restrictions}
                       </span>
                     )}
                   </div>

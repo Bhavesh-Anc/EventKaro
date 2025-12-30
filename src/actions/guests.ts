@@ -551,22 +551,27 @@ export async function addFamilyMember(formData: FormData) {
   const first_name = nameParts[0];
   const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null;
 
-  // Get the family name to set family_group_name (for trigger compatibility)
+  // Get the family details to set family_group_name (for trigger compatibility)
   const { data: family } = await supabase
     .from('wedding_family_groups')
     .select('family_name, family_side')
     .eq('id', family_id)
     .single();
 
+  if (!family) {
+    return { error: 'Family not found' };
+  }
+
+  // Insert guest - use family_group_name to link to wedding_family_groups
+  // Don't use guest_group_id as it references the separate guest_groups table
   const { data, error } = await supabase
     .from('guests')
     .insert({
-      guest_group_id: family_id,
-      family_group_name: family?.family_name || null,
-      family_side: family?.family_side || null,
       event_id,
       first_name,
       last_name,
+      family_group_name: family.family_name,
+      family_side: family.family_side,
       is_elderly,
       is_child,
       rsvp_status: 'pending',
@@ -579,8 +584,9 @@ export async function addFamilyMember(formData: FormData) {
     return { error: `Failed to add family member: ${error.message}` };
   }
 
-  // Update family member counts
-  await updateFamilyMemberCounts(family_id);
+  // The database trigger update_family_group_counts() handles updating counts
+  // But we'll also manually update to ensure consistency
+  await updateFamilyMemberCounts(family.family_name, event_id);
 
   revalidatePath('/guests');
   return { success: true, member: data };
@@ -735,13 +741,15 @@ export async function deleteFamily(familyId: string) {
 /**
  * Update family member counts (helper function)
  */
-async function updateFamilyMemberCounts(familyId: string) {
+async function updateFamilyMemberCounts(familyName: string, eventId: string) {
   const supabase = await createClient();
 
+  // Query guests by family_group_name (links to wedding_family_groups.family_name)
   const { data: members } = await supabase
     .from('guests')
     .select('rsvp_status')
-    .eq('guest_group_id', familyId);
+    .eq('family_group_name', familyName)
+    .eq('event_id', eventId);
 
   if (!members) return;
 
@@ -757,7 +765,8 @@ async function updateFamilyMemberCounts(familyId: string) {
       members_pending: pending,
       members_declined: declined,
     })
-    .eq('id', familyId);
+    .eq('family_name', familyName)
+    .eq('event_id', eventId);
 }
 
 /**

@@ -67,42 +67,41 @@ export default async function GuestsPage() {
     primary_contact_phone: fg.primary_contact_phone,
   }));
 
-  // Build family members map
+  // Build family members map - link via family_group_name to wedding_family_groups.family_name
   const familyMembers: Record<string, FamilyMember[]> = {};
   (allGuests || []).forEach((guest: any) => {
-    if (guest.guest_group_id) {
-      if (!familyMembers[guest.guest_group_id]) {
-        familyMembers[guest.guest_group_id] = [];
+    // Find family by family_group_name
+    const family = familyGroups?.find((fg: any) => fg.family_name === guest.family_group_name);
+    if (family) {
+      if (!familyMembers[family.id]) {
+        familyMembers[family.id] = [];
       }
-      familyMembers[guest.guest_group_id].push({
+      familyMembers[family.id].push({
         id: guest.id,
-        name: guest.name || `${guest.first_name} ${guest.last_name || ''}`.trim(),
-        age: guest.age,
+        name: `${guest.first_name || ''} ${guest.last_name || ''}`.trim() || 'Unknown',
         rsvp_status: guest.rsvp_status || 'pending',
-        dietary_restrictions: guest.dietary_restrictions,
         is_elderly: guest.is_elderly || false,
         is_child: guest.is_child || false,
-        is_vip: guest.is_vip || false,
+        is_vip: false, // is_vip doesn't exist on guests table
       });
     }
   });
 
   // Build individuals view data
   const individuals: IndividualGuest[] = (allGuests || []).map((guest: any) => {
-    const family = familyGroups?.find((fg: any) => fg.id === guest.guest_group_id);
+    const family = familyGroups?.find((fg: any) => fg.family_name === guest.family_group_name);
     return {
       id: guest.id,
-      name: guest.name || `${guest.first_name} ${guest.last_name || ''}`.trim(),
-      family_name: family?.family_name || 'Unknown',
-      family_side: family?.family_side || 'bride',
+      name: `${guest.first_name || ''} ${guest.last_name || ''}`.trim() || 'Unknown',
+      family_name: family?.family_name || guest.family_group_name || 'Unknown',
+      family_side: family?.family_side || guest.family_side || 'bride',
       rsvp_status: guest.rsvp_status || 'pending',
       is_outstation: guest.is_outstation || false,
-      hotel_assigned: family?.rooms_allocated > 0,
+      hotel_assigned: family ? family.rooms_allocated > 0 : false,
       pickup_assigned: family?.pickup_assigned || false,
-      is_vip: guest.is_vip || false,
+      is_vip: false, // is_vip doesn't exist on guests table
       is_elderly: guest.is_elderly || false,
       is_child: guest.is_child || false,
-      dietary_restrictions: guest.dietary_restrictions,
       phone: guest.phone,
     };
   });
