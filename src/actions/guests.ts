@@ -539,15 +539,17 @@ export async function addFamilyMember(formData: FormData) {
   const family_id = formData.get('family_id') as string;
   const event_id = formData.get('event_id') as string;
   const name = formData.get('name') as string;
-  const age = formData.get('age') ? parseInt(formData.get('age') as string) : undefined;
-  const dietary_restrictions = formData.get('dietary_restrictions') as string;
   const is_elderly = formData.get('is_elderly') === 'true';
   const is_child = formData.get('is_child') === 'true';
-  const is_vip = formData.get('is_vip') === 'true';
 
   if (!family_id || !event_id || !name) {
     return { error: 'Family, event, and name are required' };
   }
+
+  // Split name into first and last name
+  const nameParts = name.trim().split(' ');
+  const first_name = nameParts[0];
+  const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null;
 
   // Get the family name to set family_group_name (for trigger compatibility)
   const { data: family } = await supabase
@@ -563,12 +565,10 @@ export async function addFamilyMember(formData: FormData) {
       family_group_name: family?.family_name || null,
       family_side: family?.family_side || null,
       event_id,
-      name,
-      age,
-      dietary_restrictions,
+      first_name,
+      last_name,
       is_elderly,
       is_child,
-      is_vip,
       rsvp_status: 'pending',
     })
     .select()
@@ -576,7 +576,7 @@ export async function addFamilyMember(formData: FormData) {
 
   if (error) {
     console.error('Error adding family member:', error);
-    return { error: 'Failed to add family member' };
+    return { error: `Failed to add family member: ${error.message}` };
   }
 
   // Update family member counts

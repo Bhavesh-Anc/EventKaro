@@ -177,36 +177,16 @@ export function FamilyDetailDrawer({
                     {addMemberError}
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                  <div className="col-span-2">
-                    <input
-                      type="text"
-                      name="name"
-                      required
-                      placeholder="Member name *"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="number"
-                      name="age"
-                      placeholder="Age"
-                      min="0"
-                      max="120"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="text"
-                      name="dietary_restrictions"
-                      placeholder="Dietary (e.g., Veg)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
-                    />
-                  </div>
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    name="name"
+                    required
+                    placeholder="Member name *"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
                 </div>
-                <div className="flex flex-wrap gap-3 mb-3">
+                <div className="flex flex-wrap gap-4 mb-3">
                   <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" name="is_elderly" value="true" className="rounded" />
                     Elderly
@@ -214,10 +194,6 @@ export function FamilyDetailDrawer({
                   <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" name="is_child" value="true" className="rounded" />
                     Child
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="is_vip" value="true" className="rounded" />
-                    VIP
                   </label>
                 </div>
                 <div className="flex gap-2">
