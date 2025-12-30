@@ -1,8 +1,11 @@
 'use client';
 
-import { X, Users, Hotel, Truck, DollarSign, MessageCircle, Edit, Star } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { X, Users, Hotel, Truck, DollarSign, MessageCircle, Edit, Star, Plus, UserPlus } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { FamilyCardData } from './family-card';
+import { addFamilyMember } from '@/actions/guests';
+import { useRouter } from 'next/navigation';
 
 export interface FamilyMember {
   id: string;
@@ -33,6 +36,7 @@ interface Props {
     transport: number;
     total: number;
   };
+  eventId: string;
   onClose: () => void;
 }
 
@@ -47,9 +51,33 @@ export function FamilyDetailDrawer({
   members,
   rsvpHistory,
   costImpact,
+  eventId,
   onClose,
 }: Props) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
   const lateConfirmations = rsvpHistory.filter((h) => h.is_late && h.status === 'confirmed');
+
+  const handleAddMember = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setAddMemberError(null);
+
+    const formData = new FormData(e.currentTarget);
+    formData.set('family_id', family.id);
+    formData.set('event_id', eventId);
+
+    startTransition(async () => {
+      const result = await addFamilyMember(formData);
+      if (result.error) {
+        setAddMemberError(result.error);
+      } else {
+        setShowAddMember(false);
+        router.refresh();
+      }
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/30" onClick={onClose}>
@@ -128,10 +156,95 @@ export function FamilyDetailDrawer({
 
           {/* SECTION B - Members List */}
           <div>
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">
-              Family Members ({members.length})
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                Family Members ({members.length})
+              </h3>
+              <button
+                onClick={() => setShowAddMember(!showAddMember)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all"
+              >
+                <UserPlus className="h-4 w-4" />
+                Add Member
+              </button>
+            </div>
+
+            {/* Add Member Form */}
+            {showAddMember && (
+              <form onSubmit={handleAddMember} className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {addMemberError && (
+                  <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                    {addMemberError}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      placeholder="Member name *"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="number"
+                      name="age"
+                      placeholder="Age"
+                      min="0"
+                      max="120"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      name="dietary_restrictions"
+                      placeholder="Dietary (e.g., Veg)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3 mb-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="is_elderly" value="true" className="rounded" />
+                    Elderly
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="is_child" value="true" className="rounded" />
+                    Child
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="is_vip" value="true" className="rounded" />
+                    VIP
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMember(false)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPending}
+                    className="flex-1 px-3 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700 disabled:opacity-50"
+                  >
+                    {isPending ? 'Adding...' : 'Add'}
+                  </button>
+                </div>
+              </form>
+            )}
+
             <div className="space-y-2">
+              {members.length === 0 && !showAddMember && (
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  No members yet. Click "Add Member" to add family members.
+                </div>
+              )}
               {members.map((member) => (
                 <div
                   key={member.id}

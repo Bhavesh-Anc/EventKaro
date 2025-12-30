@@ -295,12 +295,13 @@ export function GuestsClient({
       )}
 
       {/* Family Detail Drawer */}
-      {selectedFamily && (
+      {selectedFamily && eventId && (
         <FamilyDetailDrawer
           family={selectedFamily}
           members={selectedMembers}
           rsvpHistory={selectedRSVPHistory}
           costImpact={selectedCostImpact}
+          eventId={eventId}
           onClose={() => setSelectedFamilyId(null)}
         />
       )}
