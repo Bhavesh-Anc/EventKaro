@@ -514,10 +514,19 @@ export async function addFamilyMember(formData: FormData) {
     return { error: 'Family, event, and name are required' };
   }
 
+  // Get the family name to set family_group_name (for trigger compatibility)
+  const { data: family } = await supabase
+    .from('wedding_family_groups')
+    .select('family_name, family_side')
+    .eq('id', family_id)
+    .single();
+
   const { data, error } = await supabase
     .from('guests')
     .insert({
       guest_group_id: family_id,
+      family_group_name: family?.family_name || null,
+      family_side: family?.family_side || null,
       event_id,
       name,
       age,
@@ -547,14 +556,14 @@ export async function addFamilyMember(formData: FormData) {
  */
 export async function updateFamilyMemberRSVP(
   guestId: string,
-  status: 'pending' | 'confirmed' | 'declined' | 'maybe',
+  status: 'pending' | 'accepted' | 'declined' | 'maybe',
   rsvpCutoffDate?: string
 ) {
   const supabase = await createClient();
 
   // Check if this is a late confirmation
   const isLate = rsvpCutoffDate
-    ? new Date() > new Date(rsvpCutoffDate) && status === 'confirmed'
+    ? new Date() > new Date(rsvpCutoffDate) && status === 'accepted'
     : false;
 
   const { data, error } = await supabase
@@ -586,7 +595,7 @@ export async function updateFamilyMemberRSVP(
  */
 export async function bulkUpdateFamilyRSVP(
   guestIds: string[],
-  status: 'pending' | 'confirmed' | 'declined' | 'maybe'
+  status: 'pending' | 'accepted' | 'declined' | 'maybe'
 ) {
   const supabase = await createClient();
 
@@ -865,6 +874,8 @@ export async function importFamiliesFromCSV(formData: FormData) {
         .insert({
           event_id: eventId,
           guest_group_id: familyId,
+          family_group_name: row.family_name, // Set family_group_name for trigger compatibility
+          family_side: row.family_side || null,
           name: row.member_name,
           age: parseInt(row.member_age) || null,
           is_elderly: row.is_elderly === 'true' || row.is_elderly === '1',
