@@ -40,7 +40,7 @@ export interface WeddingEventData {
     status: string;
     scope?: string;
     arrival_time?: string;
-    vendors: {
+    vendor_profiles?: {
       id: string;
       business_name: string;
       category: string;
@@ -182,7 +182,7 @@ function detectConflicts(
         if (timeBetween < bufferMinutes) {
           const vendorNames = event.vendor_assignments
             .filter((va) => sharedVendors.includes(va.id))
-            .map((va) => va.vendors.business_name)
+            .map((va) => va.vendor_profiles?.business_name || 'Unknown Vendor')
             .join(', ');
 
           conflicts.push(
