@@ -749,3 +749,154 @@ Please let us know at your earliest convenience. Looking forward to celebrating 
 
   return { success: true, whatsappUrl };
 }
+
+/**
+ * Import families and members from CSV
+ *
+ * CSV Format:
+ * family_name, family_side, primary_contact_name, primary_contact_phone,
+ * member_name, member_age, is_elderly, is_child, is_vip, dietary_restrictions,
+ * is_outstation, rooms_required, pickup_required
+ */
+export async function importFamiliesFromCSV(formData: FormData) {
+  const supabase = await createClient();
+
+  const file = formData.get('file') as File;
+  const eventId = formData.get('event_id') as string;
+
+  if (!file) {
+    return { error: 'No file provided', success: false };
+  }
+
+  if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+    return { error: 'Invalid file type. Please upload a CSV file.', success: false };
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return { error: 'File too large. Maximum size is 5MB.', success: false };
+  }
+
+  try {
+    const text = await file.text();
+    const lines = text.split('\n').filter((line) => line.trim());
+
+    if (lines.length < 2) {
+      return { error: 'CSV file is empty or invalid', success: false };
+    }
+
+    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const requiredHeaders = ['family_name', 'family_side', 'member_name'];
+
+    for (const required of requiredHeaders) {
+      if (!headers.includes(required)) {
+        return {
+          error: `Missing required column: ${required}`,
+          success: false,
+        };
+      }
+    }
+
+    // Track families created
+    const familyMap = new Map<string, string>(); // family_name -> family_id
+    let imported = 0;
+    let skipped = 0;
+
+    // Process each row
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map((v) => v.trim());
+      const row: any = {};
+
+      headers.forEach((header, index) => {
+        row[header] = values[index] || null;
+      });
+
+      if (!row.family_name || !row.family_side || !row.member_name) {
+        skipped++;
+        continue;
+      }
+
+      // Normalize family side
+      const familySide = row.family_side.toLowerCase();
+      if (familySide !== 'bride' && familySide !== 'groom') {
+        skipped++;
+        continue;
+      }
+
+      // Create or get family
+      let familyId: string | undefined = familyMap.get(row.family_name);
+
+      if (!familyId) {
+        // Create new family
+        const { data: newFamily, error: familyError } = await supabase
+          .from('wedding_family_groups')
+          .insert({
+            event_id: eventId,
+            family_name: row.family_name,
+            family_side: familySide,
+            primary_contact_name: row.primary_contact_name || null,
+            primary_contact_phone: row.primary_contact_phone || null,
+            is_vip: row.is_vip === 'true' || row.is_vip === '1',
+            is_outstation: row.is_outstation === 'true' || row.is_outstation === '1',
+            rooms_required: parseInt(row.rooms_required) || 0,
+            pickup_required: row.pickup_required === 'true' || row.pickup_required === '1',
+          })
+          .select()
+          .single();
+
+        if (familyError || !newFamily || !newFamily.id) {
+          console.error('Error creating family:', familyError);
+          skipped++;
+          continue;
+        }
+
+        familyId = newFamily.id;
+        familyMap.set(row.family_name, newFamily.id);
+      }
+
+      // Skip if still no family ID (shouldn't happen, but safety check)
+      if (!familyId) {
+        skipped++;
+        continue;
+      }
+
+      // Add family member
+      const { error: memberError } = await supabase
+        .from('guests')
+        .insert({
+          event_id: eventId,
+          guest_group_id: familyId,
+          name: row.member_name,
+          age: parseInt(row.member_age) || null,
+          is_elderly: row.is_elderly === 'true' || row.is_elderly === '1',
+          is_child: row.is_child === 'true' || row.is_child === '1',
+          is_vip: row.is_vip === 'true' || row.is_vip === '1',
+          dietary_restrictions: row.dietary_restrictions || null,
+          rsvp_status: 'pending',
+        });
+
+      if (memberError) {
+        console.error('Error adding member:', memberError);
+        skipped++;
+      } else {
+        imported++;
+      }
+    }
+
+    // Update member counts for all families
+    for (const familyId of familyMap.values()) {
+      await updateFamilyMemberCounts(familyId);
+    }
+
+    revalidatePath('/guests');
+    return {
+      success: true,
+      imported: familyMap.size,
+      skipped,
+    };
+  } catch (error: any) {
+    return {
+      error: `Failed to process CSV: ${error.message}`,
+      success: false,
+    };
+  }
+}

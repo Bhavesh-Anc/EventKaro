@@ -1,265 +1,212 @@
-'use client';
+import { getUser } from '@/actions/auth';
+import { getUserOrganizations } from '@/actions/organizations';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { GuestsClient } from '@/components/features/guests-client';
+import type { FamilyCardData } from '@/components/features/family-card';
+import type { FamilyMember } from '@/components/features/family-detail-drawer';
+import type { IndividualGuest } from '@/components/features/individuals-view';
+import type { LogisticsGuest, HotelAssignment, PickupAssignment } from '@/components/features/logistics-view';
+import { calculateGuestCosts } from '@/lib/guest-calculations';
 
-import { useState, useEffect } from 'react';
-import { Users, List, Truck, Plus, Filter, Search } from 'lucide-react';
-import { FamilyCard, type FamilyCardData } from '@/components/features/family-card';
-import { FamilyDetailDrawer, type FamilyMember, type RSVPHistoryEntry } from '@/components/features/family-detail-drawer';
-import { IndividualsView, type IndividualGuest } from '@/components/features/individuals-view';
-import { LogisticsView, type LogisticsGuest, type HotelAssignment, type PickupAssignment } from '@/components/features/logistics-view';
+export default async function GuestsPage() {
+  const user = await getUser();
+  const organizations = await getUserOrganizations();
 
-type ViewMode = 'families' | 'individuals' | 'logistics';
-type FilterMode = 'all' | 'pending' | 'outstation' | 'vip' | 'no-hotel' | 'no-pickup';
+  if (organizations.length === 0) {
+    redirect('/organizations/new');
+  }
 
-export default function GuestsPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>('families');
-  const [filterMode, setFilterMode] = useState<FilterMode>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const currentOrg = organizations[0];
+  const supabase = await createClient();
 
-  // TODO: Fetch real data from Supabase
-  // For now, using placeholder data structure
-  const mockFamilies: FamilyCardData[] = [];
-  const mockIndividuals: IndividualGuest[] = [];
-  const mockLogistics = {
-    hotelAssignments: [] as HotelAssignment[],
-    pickupAssignments: [] as PickupAssignment[],
-    guestsNeedingHotel: [] as LogisticsGuest[],
-    guestsNeedingPickup: [] as LogisticsGuest[],
-  };
+  // Get wedding event for this organization
+  const { data: weddingEvents } = await supabase
+    .from('events')
+    .select('id')
+    .eq('organization_id', currentOrg.id)
+    .eq('event_type', 'wedding')
+    .limit(1);
 
-  const selectedFamily = mockFamilies.find((f) => f.id === selectedFamilyId);
-  const mockMembers: FamilyMember[] = [];
-  const mockRSVPHistory: RSVPHistoryEntry[] = [];
-  const mockCostImpact = {
-    catering: 0,
-    rooms: 0,
-    transport: 0,
-    total: 0,
-  };
+  const eventId = weddingEvents?.[0]?.id;
 
-  // Filter families based on filter mode
-  const filteredFamilies = mockFamilies.filter((family) => {
-    if (filterMode === 'pending' && family.members_pending === 0) return false;
-    if (filterMode === 'outstation' && !family.is_outstation) return false;
-    if (filterMode === 'vip' && !family.is_vip) return false;
-    if (filterMode === 'no-hotel' && family.rooms_allocated >= family.rooms_required) return false;
-    if (filterMode === 'no-pickup' && (family.pickup_assigned || !family.pickup_required)) return false;
+  if (!eventId) {
+    redirect('/events/new');
+  }
 
-    if (searchQuery) {
-      return family.family_name.toLowerCase().includes(searchQuery.toLowerCase());
+  // Fetch all family groups with their data
+  const { data: familyGroups } = await supabase
+    .from('wedding_family_groups')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('family_name');
+
+  // Fetch all guests for this event
+  const { data: allGuests } = await supabase
+    .from('guests')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('name');
+
+  // Transform family groups to FamilyCardData
+  const families: FamilyCardData[] = (familyGroups || []).map((fg: any) => ({
+    id: fg.id,
+    family_name: fg.family_name,
+    family_side: fg.family_side,
+    total_members: fg.total_members || 0,
+    members_confirmed: fg.members_confirmed || 0,
+    members_pending: fg.members_pending || 0,
+    members_declined: fg.members_declined || 0,
+    is_outstation: fg.is_outstation || false,
+    rooms_required: fg.rooms_required || 0,
+    rooms_allocated: fg.rooms_allocated || 0,
+    pickup_required: fg.pickup_required || false,
+    pickup_assigned: fg.pickup_assigned || false,
+    is_vip: fg.is_vip || false,
+    primary_contact_name: fg.primary_contact_name,
+    primary_contact_phone: fg.primary_contact_phone,
+  }));
+
+  // Build family members map
+  const familyMembers: Record<string, FamilyMember[]> = {};
+  (allGuests || []).forEach((guest: any) => {
+    if (guest.guest_group_id) {
+      if (!familyMembers[guest.guest_group_id]) {
+        familyMembers[guest.guest_group_id] = [];
+      }
+      familyMembers[guest.guest_group_id].push({
+        id: guest.id,
+        name: guest.name || `${guest.first_name} ${guest.last_name || ''}`.trim(),
+        age: guest.age,
+        rsvp_status: guest.rsvp_status || 'pending',
+        dietary_restrictions: guest.dietary_restrictions,
+        is_elderly: guest.is_elderly || false,
+        is_child: guest.is_child || false,
+        is_vip: guest.is_vip || false,
+      });
     }
-
-    return true;
   });
 
+  // Build individuals view data
+  const individuals: IndividualGuest[] = (allGuests || []).map((guest: any) => {
+    const family = familyGroups?.find((fg: any) => fg.id === guest.guest_group_id);
+    return {
+      id: guest.id,
+      name: guest.name || `${guest.first_name} ${guest.last_name || ''}`.trim(),
+      family_name: family?.family_name || 'Unknown',
+      family_side: family?.family_side || 'bride',
+      rsvp_status: guest.rsvp_status || 'pending',
+      is_outstation: guest.is_outstation || false,
+      hotel_assigned: family?.rooms_allocated > 0,
+      pickup_assigned: family?.pickup_assigned || false,
+      is_vip: guest.is_vip || false,
+      is_elderly: guest.is_elderly || false,
+      is_child: guest.is_child || false,
+      dietary_restrictions: guest.dietary_restrictions,
+      phone: guest.phone,
+    };
+  });
+
+  // Build logistics view data
+  const hotelAssignments: HotelAssignment[] = [];
+  const pickupAssignments: PickupAssignment[] = [];
+  const guestsNeedingHotel: LogisticsGuest[] = [];
+  const guestsNeedingPickup: LogisticsGuest[] = [];
+
+  // Group by hotel
+  const hotelMap = new Map<string, any[]>();
+  (familyGroups || []).forEach((fg: any) => {
+    if (fg.hotel_name && fg.rooms_allocated > 0) {
+      if (!hotelMap.has(fg.hotel_name)) {
+        hotelMap.set(fg.hotel_name, []);
+      }
+      const members = familyMembers[fg.id] || [];
+      members.forEach((member) => {
+        hotelMap.get(fg.hotel_name)!.push({
+          id: member.id,
+          name: member.name,
+          family_name: fg.family_name,
+          family_id: fg.id,
+          family_side: fg.family_side,
+        });
+      });
+    }
+  });
+
+  hotelMap.forEach((guests, hotelName) => {
+    hotelAssignments.push({
+      hotel_name: hotelName,
+      guests,
+      rooms_allocated: guests.length,
+      total_capacity: guests.length,
+    });
+  });
+
+  // Find guests needing hotel
+  (familyGroups || []).forEach((fg: any) => {
+    if (fg.is_outstation && fg.rooms_required > fg.rooms_allocated) {
+      const members = familyMembers[fg.id] || [];
+      members.forEach((member) => {
+        guestsNeedingHotel.push({
+          id: member.id,
+          name: member.name,
+          family_name: fg.family_name,
+          family_id: fg.id,
+          family_side: fg.family_side,
+          phone: fg.primary_contact_phone,
+        });
+      });
+    }
+  });
+
+  // Find guests needing pickup
+  (familyGroups || []).forEach((fg: any) => {
+    if (fg.pickup_required && !fg.pickup_assigned) {
+      const members = familyMembers[fg.id] || [];
+      members.forEach((member) => {
+        guestsNeedingPickup.push({
+          id: member.id,
+          name: member.name,
+          family_name: fg.family_name,
+          family_id: fg.id,
+          family_side: fg.family_side,
+          phone: fg.primary_contact_phone,
+        });
+      });
+    }
+  });
+
+  // Calculate cost impact per family
+  const costImpact: Record<string, any> = {};
+  families.forEach((family) => {
+    const memberCount = family.total_members;
+    const costs = calculateGuestCosts(memberCount, {
+      cateringPerHead: 1500,
+      roomsNeeded: family.rooms_required,
+      roomCostPerNight: 4000,
+      transportSeats: family.pickup_required ? memberCount : 0,
+      transportCostPerSeat: 500,
+    });
+    costImpact[family.id] = costs;
+  });
+
+  // RSVP history (placeholder - would need a separate table)
+  const rsvpHistory: Record<string, any[]> = {};
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Guest Management</h1>
-          <p className="text-gray-600 mt-1">
-            Family-aware tracking • RSVP management • Logistics coordination
-          </p>
-        </div>
-        <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-semibold hover:from-rose-800 hover:to-rose-950 flex items-center gap-2 transition-all">
-          <Plus className="h-5 w-5" />
-          Add Family
-        </button>
-      </div>
-
-      {/* View Mode Toggle */}
-      <div className="flex items-center gap-3 p-2 bg-gray-100 rounded-xl w-fit">
-        <button
-          onClick={() => setViewMode('families')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
-            viewMode === 'families'
-              ? 'bg-white text-rose-700 shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
-        >
-          <Users className="h-4 w-4" />
-          Families
-        </button>
-        <button
-          onClick={() => setViewMode('individuals')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
-            viewMode === 'individuals'
-              ? 'bg-white text-rose-700 shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
-        >
-          <List className="h-4 w-4" />
-          Individuals
-        </button>
-        <button
-          onClick={() => setViewMode('logistics')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
-            viewMode === 'logistics'
-              ? 'bg-white text-rose-700 shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
-        >
-          <Truck className="h-4 w-4" />
-          Logistics
-        </button>
-      </div>
-
-      {/* Search & Filters (Families and Individuals views only) */}
-      {viewMode !== 'logistics' && (
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={`Search ${viewMode === 'families' ? 'families' : 'guests'}...`}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
-            />
-          </div>
-
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 border-2 border-gray-300 rounded-lg hover:border-rose-300 hover:bg-rose-50 flex items-center gap-2 font-semibold transition-all"
-          >
-            <Filter className="h-4 w-4" />
-            Filters
-          </button>
-        </div>
-      )}
-
-      {/* Filter Pills */}
-      {showFilters && viewMode === 'families' && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setFilterMode('all')}
-            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-              filterMode === 'all'
-                ? 'bg-rose-700 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            All Families
-          </button>
-          <button
-            onClick={() => setFilterMode('pending')}
-            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-              filterMode === 'pending'
-                ? 'bg-amber-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Pending RSVP
-          </button>
-          <button
-            onClick={() => setFilterMode('outstation')}
-            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-              filterMode === 'outstation'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Outstation
-          </button>
-          <button
-            onClick={() => setFilterMode('vip')}
-            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-              filterMode === 'vip'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            VIP
-          </button>
-          <button
-            onClick={() => setFilterMode('no-hotel')}
-            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-              filterMode === 'no-hotel'
-                ? 'bg-red-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            No Hotel
-          </button>
-          <button
-            onClick={() => setFilterMode('no-pickup')}
-            className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
-              filterMode === 'no-pickup'
-                ? 'bg-red-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            No Pickup
-          </button>
-        </div>
-      )}
-
-      {/* Content based on view mode */}
-      {viewMode === 'families' && (
-        <div className="space-y-4">
-          {filteredFamilies.length === 0 ? (
-            <div className="rounded-xl border-2 border-gray-200 bg-white p-12 text-center">
-              <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                No families yet
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Start by adding your first family to track RSVPs and logistics
-              </p>
-              <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-700 to-rose-900 text-white rounded-lg hover:from-rose-800 hover:to-rose-950 font-semibold transition-all">
-                <Plus className="h-5 w-5" />
-                Add First Family
-              </button>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredFamilies.map((family) => (
-                <FamilyCard
-                  key={family.id}
-                  family={family}
-                  onClick={() => setSelectedFamilyId(family.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {viewMode === 'individuals' && (
-        <IndividualsView
-          guests={mockIndividuals}
-          onGuestClick={(guestId) => {
-            // Find the family for this guest and open the drawer
-            console.log('Guest clicked:', guestId);
-          }}
-        />
-      )}
-
-      {viewMode === 'logistics' && (
-        <LogisticsView
-          hotelAssignments={mockLogistics.hotelAssignments}
-          pickupAssignments={mockLogistics.pickupAssignments}
-          guestsNeedingHotel={mockLogistics.guestsNeedingHotel}
-          guestsNeedingPickup={mockLogistics.guestsNeedingPickup}
-          onFamilyClick={(familyId) => {
-            setViewMode('families');
-            setSelectedFamilyId(familyId);
-          }}
-        />
-      )}
-
-      {/* Family Detail Drawer */}
-      {selectedFamily && (
-        <FamilyDetailDrawer
-          family={selectedFamily}
-          members={mockMembers}
-          rsvpHistory={mockRSVPHistory}
-          costImpact={mockCostImpact}
-          onClose={() => setSelectedFamilyId(null)}
-        />
-      )}
-    </div>
+    <GuestsClient
+      families={families}
+      individuals={individuals}
+      logistics={{
+        hotelAssignments,
+        pickupAssignments,
+        guestsNeedingHotel,
+        guestsNeedingPickup,
+      }}
+      familyMembers={familyMembers}
+      rsvpHistory={rsvpHistory}
+      costImpact={costImpact}
+      eventId={eventId}
+    />
   );
 }
