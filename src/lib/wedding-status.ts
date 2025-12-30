@@ -40,12 +40,12 @@ export interface WeddingEventData {
     status: string;
     scope?: string;
     arrival_time?: string;
-    vendor_profiles?: {
+    vendors?: {
       id: string;
       business_name: string;
-      category: string;
-      contact_phone?: string;
-      contact_email?: string;
+      business_type: string;
+      phone?: string;
+      email?: string;
     };
   }[];
   budget?: {
@@ -182,7 +182,7 @@ function detectConflicts(
         if (timeBetween < bufferMinutes) {
           const vendorNames = event.vendor_assignments
             .filter((va) => sharedVendors.includes(va.id))
-            .map((va) => va.vendor_profiles?.business_name || 'Unknown Vendor')
+            .map((va) => va.vendors?.business_name || 'Unknown Vendor')
             .join(', ');
 
           conflicts.push(
