@@ -22,8 +22,22 @@ const navigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
+// Pages where the wedding sidebar should NOT appear
+const hiddenOnRoutes = [
+  '/events/new',
+  '/events/new/wedding',
+  '/events/new/other',
+  '/organizations/new',
+];
+
 export function WeddingSidebar() {
   const pathname = usePathname();
+
+  // Don't show sidebar on certain pages (like create event flow)
+  const shouldHide = hiddenOnRoutes.some(route => pathname?.startsWith(route));
+  if (shouldHide) {
+    return null;
+  }
 
   return (
     <div className="flex h-screen w-64 flex-col bg-white border-r border-gray-200">
