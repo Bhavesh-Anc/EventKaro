@@ -221,14 +221,14 @@ export function TimelineView({ events, parentEventId, weddingDate }: Props) {
                           <div className="grid grid-cols-2 gap-3 text-sm">
                             <div className="flex items-center gap-2 text-gray-600">
                               <MapPin className="h-4 w-4 text-gray-500" />
-                              <span className="truncate">
-                                {event.venue_name || 'Venue TBD'}
+                              <span className={`truncate ${!event.venue_name ? 'italic text-gray-400' : ''}`}>
+                                {event.venue_name || 'Click to set venue'}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 text-gray-600">
                               <Users className="h-4 w-4 text-gray-500" />
                               <span>
-                                {event.expected_guest_count || 0} guests
+                                {event.expected_guest_count || 'All'} guests
                               </span>
                             </div>
                           </div>

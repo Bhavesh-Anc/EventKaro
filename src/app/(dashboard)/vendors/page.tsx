@@ -172,7 +172,40 @@ export default async function VendorsPage({
       <VendorFilters cities={cities} currentParams={params} />
 
       {/* Vendor Grid */}
-      {filteredVendors.length === 0 ? (
+      {vendors.length === 0 ? (
+        <div className="rounded-xl border-2 border-dashed border-purple-300 bg-gradient-to-br from-purple-50 to-blue-50 p-12 text-center">
+          <div className="text-6xl mb-4">🚀</div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">Vendor Marketplace Coming Soon!</h3>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            We're building India's largest wedding vendor network. Be among the first vendors to join and get featured!
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/vendors/register"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white hover:from-purple-700 hover:to-blue-700 transition-all shadow-lg"
+            >
+              Register as First Vendor
+            </Link>
+          </div>
+          <div className="mt-8 grid gap-4 md:grid-cols-3 max-w-2xl mx-auto text-left">
+            <div className="bg-white rounded-lg p-4 shadow-sm">
+              <div className="text-2xl mb-2">📸</div>
+              <h4 className="font-semibold text-gray-900">Photographers</h4>
+              <p className="text-sm text-gray-500">Capture moments</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 shadow-sm">
+              <div className="text-2xl mb-2">🍽️</div>
+              <h4 className="font-semibold text-gray-900">Caterers</h4>
+              <p className="text-sm text-gray-500">Culinary excellence</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 shadow-sm">
+              <div className="text-2xl mb-2">🎨</div>
+              <h4 className="font-semibold text-gray-900">Decorators</h4>
+              <p className="text-sm text-gray-500">Transform venues</p>
+            </div>
+          </div>
+        </div>
+      ) : filteredVendors.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <h3 className="text-lg font-semibold mb-2">No vendors found</h3>
           <p className="text-muted-foreground mb-6">

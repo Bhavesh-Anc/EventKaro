@@ -85,8 +85,8 @@ export function EventDetailPanel({ event, allEvents, onClose }: Props) {
             <div className="flex items-start gap-3">
               <MapPin className="h-5 w-5 text-gray-500 mt-0.5" />
               <div>
-                <div className="text-sm font-semibold text-gray-900">
-                  {event.venue_name || 'Venue not specified'}
+                <div className={`text-sm font-semibold ${event.venue_name ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+                  {event.venue_name || 'No venue set - click Edit to add'}
                 </div>
                 {event.venue_address && (
                   <div className="text-sm text-gray-600">{event.venue_address}</div>
@@ -132,9 +132,9 @@ export function EventDetailPanel({ event, allEvents, onClose }: Props) {
               </div>
             </div>
             {!event.guest_subset && (
-              <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 rounded-lg p-3">
-                <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Guest subset not defined. Click to configure.</span>
+              <div className="flex items-start gap-2 text-sm text-gray-500 bg-gray-50 rounded-lg p-3">
+                <Users className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>All guests invited. Edit event to limit to a specific group.</span>
               </div>
             )}
           </div>
