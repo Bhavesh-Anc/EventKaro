@@ -38,7 +38,7 @@ export default async function TimelinePage() {
   }
 
   // Fetch all wedding sub-events with complete data
-  const { data: weddingSubEvents } = await supabase
+  const { data: weddingSubEvents, error: subEventsError } = await supabase
     .from('wedding_events')
     .select(`
       *,
@@ -47,7 +47,7 @@ export default async function TimelinePage() {
         status,
         scope,
         arrival_time,
-        vendors(
+        vendor_profiles(
           id,
           business_name,
           category,
@@ -64,6 +64,10 @@ export default async function TimelinePage() {
     `)
     .eq('parent_event_id', weddingEvent.id)
     .order('start_datetime', { ascending: true });
+
+  if (subEventsError) {
+    console.error('Error fetching wedding sub-events:', subEventsError);
+  }
 
   // Format events for timeline component
   const timelineEvents = weddingSubEvents?.map((e: any) => ({
