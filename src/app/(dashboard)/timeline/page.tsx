@@ -72,7 +72,7 @@ export default async function TimelinePage() {
     transport_required: e.transport_required,
     status: e.status,
     vendor_assignments: [], // Simplified - not loading vendor data yet
-    budget: null, // Simplified - not loading budget data yet
+    budget: undefined, // Simplified - not loading budget data yet
     budget_allocated: 0,
     has_transport: e.transport_required || false,
     transport_assigned: false,
