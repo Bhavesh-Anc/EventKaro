@@ -100,23 +100,30 @@ export async function createWeddingSubEvents(formData: FormData) {
     });
   }
 
-  // Insert all events
-  if (eventsToCreate.length > 0) {
-    const { error } = await supabase
-      .from('wedding_events')
-      .insert(eventsToCreate);
-
-    if (error) {
-      console.error('Error creating wedding events:', error);
-      throw new Error(`Failed to create wedding events: ${error.message}`);
-    }
+  // Ensure at least one event is being created
+  if (eventsToCreate.length === 0) {
+    console.error('No events selected');
+    throw new Error('Please select at least one event to create your wedding timeline');
   }
 
+  // Insert all events
+  const { error } = await supabase
+    .from('wedding_events')
+    .insert(eventsToCreate);
+
+  if (error) {
+    console.error('Error creating wedding events:', error);
+    throw new Error(`Failed to create wedding events: ${error.message}`);
+  }
+
+  // Revalidate all relevant paths
   revalidatePath('/dashboard');
   revalidatePath('/timeline');
   revalidatePath(`/events/${parentEventId}`);
+  revalidatePath(`/events/${parentEventId}/wedding-timeline`);
 
-  redirect('/dashboard');
+  // Redirect to timeline page to show created events
+  redirect(`/events/${parentEventId}/wedding-timeline`);
 }
 
 export async function updateWeddingEvent(formData: FormData) {

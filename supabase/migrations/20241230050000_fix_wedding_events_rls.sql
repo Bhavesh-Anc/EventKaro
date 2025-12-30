@@ -1,24 +1,14 @@
--- Fix RLS policies for wedding_events tables
--- The original policies used FOR ALL with only USING clause
--- which doesn't work correctly for INSERT operations
--- This migration adds proper WITH CHECK clauses
+-- Fix wedding_events RLS policies for INSERT operations
+-- The issue: FOR ALL with only USING clause doesn't work properly for INSERTs
+-- Solution: Split into separate policies for different operations
 
--- ============================================
--- DROP EXISTING POLICIES
--- ============================================
-
+-- Drop existing policy
 DROP POLICY IF EXISTS "Org members can manage wedding events" ON wedding_events;
-DROP POLICY IF EXISTS "Org members can manage guest assignments" ON wedding_event_guest_assignments;
-DROP POLICY IF EXISTS "Org members can manage vendor assignments" ON wedding_event_vendor_assignments;
-DROP POLICY IF EXISTS "Vendors can view their assignments" ON wedding_event_vendor_assignments;
-DROP POLICY IF EXISTS "Org members can manage budgets" ON wedding_event_budgets;
 
--- ============================================
--- WEDDING EVENTS POLICIES
--- ============================================
+-- Create separate policies for each operation
 
--- SELECT: Org members can view wedding events
-CREATE POLICY "Org members can view wedding events"
+-- SELECT policy
+CREATE POLICY "wedding_events_select_policy"
   ON wedding_events FOR SELECT
   TO authenticated
   USING (
@@ -29,8 +19,8 @@ CREATE POLICY "Org members can view wedding events"
     )
   );
 
--- INSERT: Org members can create wedding events
-CREATE POLICY "Org members can insert wedding events"
+-- INSERT policy with WITH CHECK clause
+CREATE POLICY "wedding_events_insert_policy"
   ON wedding_events FOR INSERT
   TO authenticated
   WITH CHECK (
@@ -41,8 +31,8 @@ CREATE POLICY "Org members can insert wedding events"
     )
   );
 
--- UPDATE: Org members can update wedding events
-CREATE POLICY "Org members can update wedding events"
+-- UPDATE policy
+CREATE POLICY "wedding_events_update_policy"
   ON wedding_events FOR UPDATE
   TO authenticated
   USING (
@@ -51,10 +41,17 @@ CREATE POLICY "Org members can update wedding events"
       JOIN organization_members om ON e.organization_id = om.organization_id
       WHERE om.user_id = auth.uid()
     )
+  )
+  WITH CHECK (
+    parent_event_id IN (
+      SELECT e.id FROM events e
+      JOIN organization_members om ON e.organization_id = om.organization_id
+      WHERE om.user_id = auth.uid()
+    )
   );
 
--- DELETE: Org members can delete wedding events
-CREATE POLICY "Org members can delete wedding events"
+-- DELETE policy
+CREATE POLICY "wedding_events_delete_policy"
   ON wedding_events FOR DELETE
   TO authenticated
   USING (
@@ -65,12 +62,13 @@ CREATE POLICY "Org members can delete wedding events"
     )
   );
 
--- ============================================
--- WEDDING EVENT GUEST ASSIGNMENTS POLICIES
--- ============================================
+-- Also fix the guest assignments, vendor assignments, and budgets tables
+-- These also use FOR ALL without proper WITH CHECK
 
--- SELECT: Org members can view guest assignments
-CREATE POLICY "Org members can view guest assignments"
+-- Guest assignments
+DROP POLICY IF EXISTS "Org members can manage guest assignments" ON wedding_event_guest_assignments;
+
+CREATE POLICY "wedding_event_guest_assignments_select"
   ON wedding_event_guest_assignments FOR SELECT
   TO authenticated
   USING (
@@ -82,8 +80,7 @@ CREATE POLICY "Org members can view guest assignments"
     )
   );
 
--- INSERT: Org members can create guest assignments
-CREATE POLICY "Org members can insert guest assignments"
+CREATE POLICY "wedding_event_guest_assignments_insert"
   ON wedding_event_guest_assignments FOR INSERT
   TO authenticated
   WITH CHECK (
@@ -95,8 +92,7 @@ CREATE POLICY "Org members can insert guest assignments"
     )
   );
 
--- UPDATE: Org members can update guest assignments
-CREATE POLICY "Org members can update guest assignments"
+CREATE POLICY "wedding_event_guest_assignments_update"
   ON wedding_event_guest_assignments FOR UPDATE
   TO authenticated
   USING (
@@ -108,8 +104,7 @@ CREATE POLICY "Org members can update guest assignments"
     )
   );
 
--- DELETE: Org members can delete guest assignments
-CREATE POLICY "Org members can delete guest assignments"
+CREATE POLICY "wedding_event_guest_assignments_delete"
   ON wedding_event_guest_assignments FOR DELETE
   TO authenticated
   USING (
@@ -121,12 +116,10 @@ CREATE POLICY "Org members can delete guest assignments"
     )
   );
 
--- ============================================
--- WEDDING EVENT VENDOR ASSIGNMENTS POLICIES
--- ============================================
+-- Vendor assignments
+DROP POLICY IF EXISTS "Org members can manage vendor assignments" ON wedding_event_vendor_assignments;
 
--- SELECT: Org members can view vendor assignments
-CREATE POLICY "Org members can view vendor assignments"
+CREATE POLICY "wedding_event_vendor_assignments_select"
   ON wedding_event_vendor_assignments FOR SELECT
   TO authenticated
   USING (
@@ -136,10 +129,12 @@ CREATE POLICY "Org members can view vendor assignments"
       JOIN organization_members om ON e.organization_id = om.organization_id
       WHERE om.user_id = auth.uid()
     )
+    OR vendor_id IN (
+      SELECT id FROM vendor_profiles WHERE user_id = auth.uid()
+    )
   );
 
--- INSERT: Org members can create vendor assignments
-CREATE POLICY "Org members can insert vendor assignments"
+CREATE POLICY "wedding_event_vendor_assignments_insert"
   ON wedding_event_vendor_assignments FOR INSERT
   TO authenticated
   WITH CHECK (
@@ -151,8 +146,7 @@ CREATE POLICY "Org members can insert vendor assignments"
     )
   );
 
--- UPDATE: Org members can update vendor assignments
-CREATE POLICY "Org members can update vendor assignments"
+CREATE POLICY "wedding_event_vendor_assignments_update"
   ON wedding_event_vendor_assignments FOR UPDATE
   TO authenticated
   USING (
@@ -164,8 +158,7 @@ CREATE POLICY "Org members can update vendor assignments"
     )
   );
 
--- DELETE: Org members can delete vendor assignments
-CREATE POLICY "Org members can delete vendor assignments"
+CREATE POLICY "wedding_event_vendor_assignments_delete"
   ON wedding_event_vendor_assignments FOR DELETE
   TO authenticated
   USING (
@@ -177,22 +170,13 @@ CREATE POLICY "Org members can delete vendor assignments"
     )
   );
 
--- Vendors can view their own assignments
-CREATE POLICY "Vendors can view own assignments"
-  ON wedding_event_vendor_assignments FOR SELECT
-  TO authenticated
-  USING (
-    vendor_id IN (
-      SELECT id FROM vendor_profiles WHERE user_id = auth.uid()
-    )
-  );
+-- Drop the separate vendor view policy since it's now merged into SELECT
+DROP POLICY IF EXISTS "Vendors can view their assignments" ON wedding_event_vendor_assignments;
 
--- ============================================
--- WEDDING EVENT BUDGETS POLICIES
--- ============================================
+-- Budget policies
+DROP POLICY IF EXISTS "Org members can manage budgets" ON wedding_event_budgets;
 
--- SELECT: Org members can view budgets
-CREATE POLICY "Org members can view budgets"
+CREATE POLICY "wedding_event_budgets_select"
   ON wedding_event_budgets FOR SELECT
   TO authenticated
   USING (
@@ -204,8 +188,7 @@ CREATE POLICY "Org members can view budgets"
     )
   );
 
--- INSERT: Org members can create budgets
-CREATE POLICY "Org members can insert budgets"
+CREATE POLICY "wedding_event_budgets_insert"
   ON wedding_event_budgets FOR INSERT
   TO authenticated
   WITH CHECK (
@@ -217,8 +200,7 @@ CREATE POLICY "Org members can insert budgets"
     )
   );
 
--- UPDATE: Org members can update budgets
-CREATE POLICY "Org members can update budgets"
+CREATE POLICY "wedding_event_budgets_update"
   ON wedding_event_budgets FOR UPDATE
   TO authenticated
   USING (
@@ -230,8 +212,7 @@ CREATE POLICY "Org members can update budgets"
     )
   );
 
--- DELETE: Org members can delete budgets
-CREATE POLICY "Org members can delete budgets"
+CREATE POLICY "wedding_event_budgets_delete"
   ON wedding_event_budgets FOR DELETE
   TO authenticated
   USING (
@@ -242,3 +223,9 @@ CREATE POLICY "Org members can delete budgets"
       WHERE om.user_id = auth.uid()
     )
   );
+
+-- Add comments
+COMMENT ON POLICY "wedding_events_insert_policy" ON wedding_events IS 'Allow organization members to create wedding sub-events';
+COMMENT ON POLICY "wedding_events_select_policy" ON wedding_events IS 'Allow organization members to view wedding sub-events';
+COMMENT ON POLICY "wedding_events_update_policy" ON wedding_events IS 'Allow organization members to update wedding sub-events';
+COMMENT ON POLICY "wedding_events_delete_policy" ON wedding_events IS 'Allow organization members to delete wedding sub-events';

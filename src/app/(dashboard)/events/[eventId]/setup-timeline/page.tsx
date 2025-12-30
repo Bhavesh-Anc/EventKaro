@@ -105,8 +105,9 @@ export default async function SetupTimelinePage({ params }: Props) {
         {/* Actions */}
         <div className="flex gap-3 pb-8">
           <button
+            type="submit"
             formAction={createWeddingSubEvents}
-            className="flex-1 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 px-6 py-3 text-base font-semibold text-white hover:from-rose-800 hover:to-rose-950 shadow-lg hover:shadow-xl transition-all"
+            className="flex-1 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 px-6 py-3 text-base font-semibold text-white hover:from-rose-800 hover:to-rose-950 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Create Wedding Timeline
           </button>
