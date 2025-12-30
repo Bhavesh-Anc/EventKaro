@@ -67,6 +67,7 @@ export async function createWeddingSubEvents(formData: FormData) {
       venue_address: null,
       expected_guest_count: parentEvent.capacity,
       status: 'planned',
+      sequence_order: eventsToCreate.length + 1,
     });
   }
 
@@ -95,6 +96,7 @@ export async function createWeddingSubEvents(formData: FormData) {
       venue_address: null,
       expected_guest_count: parentEvent.capacity,
       status: 'planned',
+      sequence_order: eventsToCreate.length + 1,
     });
   }
 
