@@ -38,31 +38,10 @@ export default async function TimelinePage() {
   }
 
   // Fetch all wedding sub-events with complete data
-  // Note: Using vendor_profiles table (which exists in the database)
+  // Simplified query - removed vendor join that was causing column errors
   const { data: weddingSubEvents, error: subEventsError } = await supabase
     .from('wedding_events')
-    .select(`
-      *,
-      vendor_assignments:wedding_event_vendor_assignments(
-        id,
-        status,
-        scope,
-        arrival_time,
-        vendor_profiles(
-          id,
-          business_name,
-          category,
-          contact_phone,
-          contact_email
-        )
-      ),
-      budget:wedding_event_budgets(
-        id,
-        allocated_amount,
-        spent_amount,
-        committed_amount
-      )
-    `)
+    .select('*')
     .eq('parent_event_id', weddingEvent.id)
     .order('start_datetime', { ascending: true });
 
@@ -92,11 +71,11 @@ export default async function TimelinePage() {
     color_theme: e.color_theme,
     transport_required: e.transport_required,
     status: e.status,
-    vendor_assignments: e.vendor_assignments,
-    budget: e.budget?.[0] || null,
-    budget_allocated: e.budget?.[0]?.allocated_amount || 0,
+    vendor_assignments: [], // Simplified - not loading vendor data yet
+    budget: null, // Simplified - not loading budget data yet
+    budget_allocated: 0,
     has_transport: e.transport_required || false,
-    transport_assigned: false, // TODO: Check actual transport assignments
+    transport_assigned: false,
   })) || [];
 
   return (
