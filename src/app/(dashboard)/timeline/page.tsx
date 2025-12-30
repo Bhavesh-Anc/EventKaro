@@ -38,7 +38,7 @@ export default async function TimelinePage() {
   }
 
   // Fetch all wedding sub-events with complete data
-  // Note: vendor table is "vendors" with "business_type" column (not "category")
+  // Note: Using vendor_profiles table (which exists in the database)
   const { data: weddingSubEvents, error: subEventsError } = await supabase
     .from('wedding_events')
     .select(`
@@ -48,12 +48,12 @@ export default async function TimelinePage() {
         status,
         scope,
         arrival_time,
-        vendors(
+        vendor_profiles(
           id,
           business_name,
-          business_type,
-          phone,
-          email
+          category,
+          contact_phone,
+          contact_email
         )
       ),
       budget:wedding_event_budgets(
