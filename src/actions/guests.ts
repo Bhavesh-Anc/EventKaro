@@ -525,7 +525,7 @@ export async function createFamily(formData: FormData) {
 
   if (error) {
     console.error('Error creating family:', error);
-    return { error: 'Failed to create family' };
+    return { error: `Failed to create family: ${error.message}` };
   }
 
   revalidatePath('/guests');
