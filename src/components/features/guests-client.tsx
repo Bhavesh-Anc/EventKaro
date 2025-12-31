@@ -8,6 +8,7 @@ import { IndividualsView, type IndividualGuest } from '@/components/features/ind
 import { LogisticsView, type LogisticsGuest, type HotelAssignment, type PickupAssignment } from '@/components/features/logistics-view';
 import { CSVImportModal } from '@/components/features/csv-import-modal';
 import { AddFamilyModal } from '@/components/features/add-family-modal';
+import { GuestDetailDrawer, type GuestDetail } from '@/components/features/guest-detail-drawer';
 import { useRouter } from 'next/navigation';
 
 type ViewMode = 'families' | 'individuals' | 'logistics';
@@ -42,6 +43,7 @@ export function GuestsClient({
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showCSVImport, setShowCSVImport] = useState(false);
   const [showAddFamily, setShowAddFamily] = useState(false);
@@ -50,6 +52,9 @@ export function GuestsClient({
   const selectedMembers = selectedFamilyId ? (familyMembers[selectedFamilyId] || []) : [];
   const selectedRSVPHistory = selectedFamilyId ? (rsvpHistory[selectedFamilyId] || []) : [];
   const selectedCostImpact = selectedFamilyId ? (costImpact[selectedFamilyId] || { catering: 0, rooms: 0, transport: 0, total: 0 }) : { catering: 0, rooms: 0, transport: 0, total: 0 };
+
+  // Find selected guest for the drawer
+  const selectedGuest = selectedGuestId ? individuals.find((g) => g.id === selectedGuestId) : null;
 
   // Filter families based on filter mode
   const filteredFamilies = families.filter((family) => {
@@ -268,15 +273,8 @@ export function GuestsClient({
         <IndividualsView
           guests={filteredIndividuals}
           onGuestClick={(guestId) => {
-            // Find the family for this guest and open the drawer
-            const guest = individuals.find((g) => g.id === guestId);
-            if (guest) {
-              const family = families.find((f) => f.family_name === guest.family_name);
-              if (family) {
-                setViewMode('families');
-                setSelectedFamilyId(family.id);
-              }
-            }
+            // Open the guest detail drawer for RSVP updates
+            setSelectedGuestId(guestId);
           }}
         />
       )}
@@ -303,6 +301,28 @@ export function GuestsClient({
           costImpact={selectedCostImpact}
           eventId={eventId}
           onClose={() => setSelectedFamilyId(null)}
+        />
+      )}
+
+      {/* Guest Detail Drawer (for individual guest RSVP) */}
+      {selectedGuest && eventId && (
+        <GuestDetailDrawer
+          guest={{
+            id: selectedGuest.id,
+            name: selectedGuest.name,
+            family_name: selectedGuest.family_name,
+            family_side: selectedGuest.family_side,
+            rsvp_status: selectedGuest.rsvp_status,
+            is_outstation: selectedGuest.is_outstation,
+            hotel_assigned: selectedGuest.hotel_assigned,
+            pickup_assigned: selectedGuest.pickup_assigned,
+            is_vip: selectedGuest.is_vip,
+            is_elderly: selectedGuest.is_elderly,
+            is_child: selectedGuest.is_child,
+            phone: selectedGuest.phone,
+          }}
+          eventId={eventId}
+          onClose={() => setSelectedGuestId(null)}
         />
       )}
 
