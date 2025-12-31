@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, List, Truck, Plus, Filter, Search, Upload } from 'lucide-react';
+import { Users, List, Truck, Plus, Filter, Search, Upload, Send } from 'lucide-react';
 import { FamilyCard, type FamilyCardData } from '@/components/features/family-card';
 import { FamilyDetailDrawer, type FamilyMember, type RSVPHistoryEntry } from '@/components/features/family-detail-drawer';
 import { IndividualsView, type IndividualGuest } from '@/components/features/individuals-view';
@@ -9,10 +9,25 @@ import { LogisticsView, type LogisticsGuest, type HotelAssignment, type PickupAs
 import { CSVImportModal } from '@/components/features/csv-import-modal';
 import { AddFamilyModal } from '@/components/features/add-family-modal';
 import { GuestDetailDrawer, type GuestDetail } from '@/components/features/guest-detail-drawer';
+import { RSVPStatsCards } from '@/components/features/rsvp-stats';
+import { BulkRSVPActions } from '@/components/features/bulk-rsvp-actions';
 import { useRouter } from 'next/navigation';
 
 type ViewMode = 'families' | 'individuals' | 'logistics';
 type FilterMode = 'all' | 'pending' | 'outstation' | 'vip' | 'no-hotel' | 'no-pickup';
+
+interface RSVPStats {
+  totalFamilies: number;
+  totalGuests: number;
+  confirmedGuests: number;
+  declinedGuests: number;
+  pendingGuests: number;
+  maybeGuests: number;
+  outstationGuests: number;
+  needsHotel: number;
+  needsPickup: number;
+  rsvpResponseRate: number;
+}
 
 interface Props {
   families: FamilyCardData[];
@@ -27,6 +42,7 @@ interface Props {
   familyMembers: Record<string, FamilyMember[]>;
   rsvpHistory: Record<string, RSVPHistoryEntry[]>;
   costImpact: Record<string, { catering: number; rooms: number; transport: number; total: number }>;
+  rsvpStats?: RSVPStats;
   eventId?: string;
   eventName?: string;
   eventDate?: string;
@@ -39,6 +55,7 @@ export function GuestsClient({
   familyMembers,
   rsvpHistory,
   costImpact,
+  rsvpStats,
   eventId,
   eventName,
   eventDate,
@@ -52,6 +69,7 @@ export function GuestsClient({
   const [showFilters, setShowFilters] = useState(false);
   const [showCSVImport, setShowCSVImport] = useState(false);
   const [showAddFamily, setShowAddFamily] = useState(false);
+  const [showBulkRSVP, setShowBulkRSVP] = useState(false);
 
   const selectedFamily = families.find((f) => f.id === selectedFamilyId);
   const selectedMembers = selectedFamilyId ? (familyMembers[selectedFamilyId] || []) : [];
@@ -97,6 +115,13 @@ export function GuestsClient({
         </div>
         <div className="flex gap-3">
           <button
+            onClick={() => setShowBulkRSVP(true)}
+            className="px-4 py-2 rounded-lg border-2 border-green-600 text-green-600 font-semibold hover:bg-green-50 flex items-center gap-2 transition-all"
+          >
+            <Send className="h-5 w-5" />
+            Send RSVP Reminders
+          </button>
+          <button
             onClick={() => setShowCSVImport(true)}
             className="px-4 py-2 rounded-lg border-2 border-rose-700 text-rose-700 font-semibold hover:bg-rose-50 flex items-center gap-2 transition-all"
           >
@@ -112,6 +137,11 @@ export function GuestsClient({
           </button>
         </div>
       </div>
+
+      {/* RSVP Statistics */}
+      {rsvpStats && (
+        <RSVPStatsCards stats={rsvpStats} />
+      )}
 
       {/* View Mode Toggle */}
       <div className="flex items-center gap-3 p-2 bg-gray-100 rounded-xl w-fit">
@@ -354,6 +384,22 @@ export function GuestsClient({
           onSuccess={() => {
             router.refresh();
           }}
+        />
+      )}
+
+      {/* Bulk RSVP Actions Modal */}
+      {showBulkRSVP && eventId && (
+        <BulkRSVPActions
+          families={families.map(f => ({
+            id: f.id,
+            family_name: f.family_name,
+            primary_contact_phone: f.primary_contact_phone,
+            members_pending: f.members_pending,
+          }))}
+          eventId={eventId}
+          eventName={eventName || 'Wedding Celebration'}
+          eventDate={eventDate}
+          onClose={() => setShowBulkRSVP(false)}
         />
       )}
     </div>

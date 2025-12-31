@@ -6,6 +6,8 @@ import { format, parseISO } from 'date-fns';
 import type { FamilyCardData } from './family-card';
 import { addFamilyMember, sendRSVPFormToFamily } from '@/actions/guests';
 import { useRouter } from 'next/navigation';
+import { AssignHotelModal } from './assign-hotel-modal';
+import { AssignTransportModal } from './assign-transport-modal';
 
 export interface FamilyMember {
   id: string;
@@ -64,6 +66,8 @@ export function FamilyDetailDrawer({
   const [addMemberError, setAddMemberError] = useState<string | null>(null);
   const [rsvpFormError, setRsvpFormError] = useState<string | null>(null);
   const [rsvpFormSending, setRsvpFormSending] = useState(false);
+  const [showHotelModal, setShowHotelModal] = useState(false);
+  const [showTransportModal, setShowTransportModal] = useState(false);
   const lateConfirmations = rsvpHistory.filter((h) => h.is_late && h.status === 'confirmed');
 
   const handleSendRSVPForm = async () => {
@@ -390,11 +394,17 @@ export function FamilyDetailDrawer({
                       </div>
                     </div>
                     {family.rooms_required > family.rooms_allocated ? (
-                      <button className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => setShowHotelModal(true)}
+                        className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all"
+                      >
                         Assign Hotel
                       </button>
                     ) : (
-                      <button className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => setShowHotelModal(true)}
+                        className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-semibold transition-all"
+                      >
                         <Edit className="h-4 w-4" />
                       </button>
                     )}
@@ -416,11 +426,17 @@ export function FamilyDetailDrawer({
                       </div>
                     </div>
                     {!family.pickup_assigned ? (
-                      <button className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => setShowTransportModal(true)}
+                        className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all"
+                      >
                         Assign Pickup
                       </button>
                     ) : (
-                      <button className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => setShowTransportModal(true)}
+                        className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-semibold transition-all"
+                      >
                         <Edit className="h-4 w-4" />
                       </button>
                     )}
@@ -469,12 +485,30 @@ export function FamilyDetailDrawer({
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-amber-300 text-xs text-amber-800">
-                💡 This estimate is private and visible only to organizers
+                This estimate is private and visible only to organizers
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Hotel Assignment Modal */}
+      <AssignHotelModal
+        isOpen={showHotelModal}
+        onClose={() => setShowHotelModal(false)}
+        familyId={family.id}
+        familyName={family.family_name}
+        roomsRequired={family.rooms_required}
+        currentRoomsAllocated={family.rooms_allocated}
+      />
+
+      {/* Transport Assignment Modal */}
+      <AssignTransportModal
+        isOpen={showTransportModal}
+        onClose={() => setShowTransportModal(false)}
+        familyId={family.id}
+        familyName={family.family_name}
+      />
     </div>
   );
 }

@@ -232,6 +232,29 @@ export default async function GuestsPage() {
   // RSVP history (placeholder - would need a separate table)
   const rsvpHistory: Record<string, any[]> = {};
 
+  // Calculate RSVP statistics
+  const totalGuests = allGuests?.length || 0;
+  const confirmedGuests = allGuests?.filter((g: any) => g.rsvp_status === 'accepted').length || 0;
+  const declinedGuests = allGuests?.filter((g: any) => g.rsvp_status === 'declined').length || 0;
+  const pendingGuests = allGuests?.filter((g: any) => g.rsvp_status === 'pending' || !g.rsvp_status).length || 0;
+  const maybeGuests = allGuests?.filter((g: any) => g.rsvp_status === 'maybe').length || 0;
+  const outstationGuests = allGuests?.filter((g: any) => g.is_outstation).length || 0;
+  const respondedGuests = confirmedGuests + declinedGuests + maybeGuests;
+  const rsvpResponseRate = totalGuests > 0 ? Math.round((respondedGuests / totalGuests) * 100) : 0;
+
+  const rsvpStats = {
+    totalFamilies: families.length,
+    totalGuests,
+    confirmedGuests,
+    declinedGuests,
+    pendingGuests,
+    maybeGuests,
+    outstationGuests,
+    needsHotel: guestsNeedingHotel.length,
+    needsPickup: guestsNeedingPickup.length,
+    rsvpResponseRate,
+  };
+
   return (
     <GuestsClient
       families={families}
@@ -246,6 +269,7 @@ export default async function GuestsPage() {
       familyMembers={familyMembers}
       rsvpHistory={rsvpHistory}
       costImpact={costImpact}
+      rsvpStats={rsvpStats}
       eventId={eventId}
       eventName={weddingEvent?.title || 'Wedding Celebration'}
       eventDate={weddingEvent?.start_date}
