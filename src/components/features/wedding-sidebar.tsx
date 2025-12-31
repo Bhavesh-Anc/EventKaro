@@ -10,7 +10,8 @@ import {
   IndianRupee,
   Store,
   ListTodo,
-  Settings
+  Settings,
+  Heart
 } from 'lucide-react';
 
 interface WeddingInfo {
@@ -26,12 +27,27 @@ interface Props {
   wedding: WeddingInfo | null;
 }
 
-const navigation = [
+interface NavSubItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  subItems?: NavSubItem[];
+}
+
+const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Guest Management', href: '/guests', icon: Users },
   { name: 'Events & Timeline', href: '/timeline', icon: Calendar },
   { name: 'Budget Tracker', href: '/budget', icon: IndianRupee },
-  { name: 'Vendors', href: '/vendors', icon: Store },
+  { name: 'Vendors', href: '/vendors', icon: Store, subItems: [
+    { name: 'Saved Vendors', href: '/vendors/saved', icon: Heart },
+  ] },
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
@@ -86,20 +102,46 @@ export function WeddingSidebar({ wedding }: Props) {
           const Icon = item.icon;
 
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`
-                flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                ${isActive
-                  ? 'bg-gradient-to-r from-rose-700 to-rose-900 text-white shadow-sm'
-                  : 'text-gray-700 hover:bg-gray-100'
-                }
-              `}
-            >
-              <Icon className="h-5 w-5" />
-              {item.name}
-            </Link>
+            <div key={item.name}>
+              <Link
+                href={item.href}
+                className={`
+                  flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
+                  ${isActive
+                    ? 'bg-gradient-to-r from-rose-700 to-rose-900 text-white shadow-sm'
+                    : 'text-gray-700 hover:bg-gray-100'
+                  }
+                `}
+              >
+                <Icon className="h-5 w-5" />
+                {item.name}
+              </Link>
+              {/* Sub-items */}
+              {item.subItems && isActive && (
+                <div className="ml-8 mt-1 space-y-1">
+                  {item.subItems.map((subItem) => {
+                    const SubIcon = subItem.icon;
+                    const isSubActive = pathname === subItem.href;
+                    return (
+                      <Link
+                        key={subItem.name}
+                        href={subItem.href}
+                        className={`
+                          flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors
+                          ${isSubActive
+                            ? 'bg-rose-100 text-rose-800 font-medium'
+                            : 'text-gray-600 hover:bg-gray-100'
+                          }
+                        `}
+                      >
+                        <SubIcon className="h-4 w-4" />
+                        {subItem.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>

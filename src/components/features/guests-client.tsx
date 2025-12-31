@@ -5,7 +5,7 @@ import { Users, List, Truck, Plus, Filter, Search, Upload } from 'lucide-react';
 import { FamilyCard, type FamilyCardData } from '@/components/features/family-card';
 import { FamilyDetailDrawer, type FamilyMember, type RSVPHistoryEntry } from '@/components/features/family-detail-drawer';
 import { IndividualsView, type IndividualGuest } from '@/components/features/individuals-view';
-import { LogisticsView, type LogisticsGuest, type HotelAssignment, type PickupAssignment } from '@/components/features/logistics-view';
+import { LogisticsView, type LogisticsGuest, type HotelAssignment, type PickupAssignment, type GuestTravelDetails } from '@/components/features/logistics-view';
 import { CSVImportModal } from '@/components/features/csv-import-modal';
 import { AddFamilyModal } from '@/components/features/add-family-modal';
 import { GuestDetailDrawer, type GuestDetail } from '@/components/features/guest-detail-drawer';
@@ -22,11 +22,14 @@ interface Props {
     pickupAssignments: PickupAssignment[];
     guestsNeedingHotel: LogisticsGuest[];
     guestsNeedingPickup: LogisticsGuest[];
+    guestTravelDetails?: GuestTravelDetails[];
   };
   familyMembers: Record<string, FamilyMember[]>;
   rsvpHistory: Record<string, RSVPHistoryEntry[]>;
   costImpact: Record<string, { catering: number; rooms: number; transport: number; total: number }>;
   eventId?: string;
+  eventName?: string;
+  eventDate?: string;
 }
 
 export function GuestsClient({
@@ -37,6 +40,8 @@ export function GuestsClient({
   rsvpHistory,
   costImpact,
   eventId,
+  eventName,
+  eventDate,
 }: Props) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>('families');
@@ -285,6 +290,7 @@ export function GuestsClient({
           pickupAssignments={logistics.pickupAssignments}
           guestsNeedingHotel={logistics.guestsNeedingHotel}
           guestsNeedingPickup={logistics.guestsNeedingPickup}
+          guestTravelDetails={logistics.guestTravelDetails}
           onFamilyClick={(familyId) => {
             setViewMode('families');
             setSelectedFamilyId(familyId);
@@ -300,6 +306,8 @@ export function GuestsClient({
           rsvpHistory={selectedRSVPHistory}
           costImpact={selectedCostImpact}
           eventId={eventId}
+          eventName={eventName}
+          eventDate={eventDate}
           onClose={() => setSelectedFamilyId(null)}
         />
       )}

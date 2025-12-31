@@ -6,7 +6,7 @@ import { GuestsClient } from '@/components/features/guests-client';
 import type { FamilyCardData } from '@/components/features/family-card';
 import type { FamilyMember } from '@/components/features/family-detail-drawer';
 import type { IndividualGuest } from '@/components/features/individuals-view';
-import type { LogisticsGuest, HotelAssignment, PickupAssignment } from '@/components/features/logistics-view';
+import type { LogisticsGuest, HotelAssignment, PickupAssignment, GuestTravelDetails } from '@/components/features/logistics-view';
 import { calculateGuestCosts } from '@/lib/guest-calculations';
 
 export default async function GuestsPage() {
@@ -23,12 +23,13 @@ export default async function GuestsPage() {
   // Get wedding event for this organization
   const { data: weddingEvents } = await supabase
     .from('events')
-    .select('id')
+    .select('id, title, start_date')
     .eq('organization_id', currentOrg.id)
     .eq('event_type', 'wedding')
     .limit(1);
 
-  const eventId = weddingEvents?.[0]?.id;
+  const weddingEvent = weddingEvents?.[0];
+  const eventId = weddingEvent?.id;
 
   if (!eventId) {
     redirect('/events/new');
@@ -175,6 +176,45 @@ export default async function GuestsPage() {
     }
   });
 
+  // Build guest travel details from RSVP submissions
+  const guestTravelDetails: GuestTravelDetails[] = (allGuests || [])
+    .filter((guest: any) =>
+      guest.arrival_date || guest.departure_date || guest.needs_accommodation
+    )
+    .map((guest: any) => {
+      const family = familyGroups?.find((fg: any) => fg.family_name === guest.family_group_name);
+      return {
+        id: guest.id,
+        name: `${guest.first_name || ''} ${guest.last_name || ''}`.trim() || 'Unknown',
+        family_name: family?.family_name || guest.family_group_name || 'Unknown',
+        family_id: family?.id || '',
+        family_side: family?.family_side || 'bride',
+        phone: guest.phone,
+        // Arrival
+        arrival_date: guest.arrival_date,
+        arrival_time: guest.arrival_time,
+        arrival_location: guest.arrival_location,
+        arrival_location_type: guest.arrival_location_type,
+        arrival_flight_train_number: guest.arrival_flight_train_number,
+        arrival_needs_pickup: guest.arrival_needs_pickup || false,
+        arrival_notes: guest.arrival_notes,
+        // Departure
+        departure_date: guest.departure_date,
+        departure_time: guest.departure_time,
+        departure_location: guest.departure_location,
+        departure_location_type: guest.departure_location_type,
+        departure_flight_train_number: guest.departure_flight_train_number,
+        departure_needs_dropoff: guest.departure_needs_dropoff || false,
+        departure_notes: guest.departure_notes,
+        // Accommodation
+        needs_accommodation: guest.needs_accommodation || false,
+        accommodation_check_in: guest.accommodation_check_in,
+        accommodation_check_out: guest.accommodation_check_out,
+        accommodation_preferences: guest.accommodation_preferences,
+        hotel_assigned: family?.hotel_name || undefined,
+      };
+    });
+
   // Calculate cost impact per family
   const costImpact: Record<string, any> = {};
   families.forEach((family) => {
@@ -201,11 +241,14 @@ export default async function GuestsPage() {
         pickupAssignments,
         guestsNeedingHotel,
         guestsNeedingPickup,
+        guestTravelDetails,
       }}
       familyMembers={familyMembers}
       rsvpHistory={rsvpHistory}
       costImpact={costImpact}
       eventId={eventId}
+      eventName={weddingEvent?.title || 'Wedding Celebration'}
+      eventDate={weddingEvent?.start_date}
     />
   );
 }

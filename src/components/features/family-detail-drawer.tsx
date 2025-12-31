@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { X, Users, Hotel, Truck, DollarSign, MessageCircle, Edit, Star, Plus, UserPlus } from 'lucide-react';
+import { X, Users, Hotel, Truck, DollarSign, MessageCircle, Edit, Star, Plus, UserPlus, Send, FileText } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { FamilyCardData } from './family-card';
-import { addFamilyMember } from '@/actions/guests';
+import { addFamilyMember, sendRSVPFormToFamily } from '@/actions/guests';
 import { useRouter } from 'next/navigation';
 
 export interface FamilyMember {
@@ -37,6 +37,8 @@ interface Props {
     total: number;
   };
   eventId: string;
+  eventName?: string;
+  eventDate?: string;
   onClose: () => void;
 }
 
@@ -52,13 +54,45 @@ export function FamilyDetailDrawer({
   rsvpHistory,
   costImpact,
   eventId,
+  eventName = 'Wedding Celebration',
+  eventDate,
   onClose,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showAddMember, setShowAddMember] = useState(false);
   const [addMemberError, setAddMemberError] = useState<string | null>(null);
+  const [rsvpFormError, setRsvpFormError] = useState<string | null>(null);
+  const [rsvpFormSending, setRsvpFormSending] = useState(false);
   const lateConfirmations = rsvpHistory.filter((h) => h.is_late && h.status === 'confirmed');
+
+  const handleSendRSVPForm = async () => {
+    setRsvpFormError(null);
+    setRsvpFormSending(true);
+
+    try {
+      const baseUrl = window.location.origin;
+      const formattedDate = eventDate || 'TBD';
+
+      const result = await sendRSVPFormToFamily(
+        family.id,
+        eventId,
+        eventName,
+        formattedDate,
+        baseUrl
+      );
+
+      if (result.error) {
+        setRsvpFormError(result.error);
+      } else if (result.whatsappUrl) {
+        window.open(result.whatsappUrl, '_blank');
+      }
+    } catch (error) {
+      setRsvpFormError('Failed to generate RSVP links');
+    } finally {
+      setRsvpFormSending(false);
+    }
+  };
 
   const handleAddMember = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -135,7 +169,20 @@ export function FamilyDetailDrawer({
                   )}
                 </div>
               )}
+              {rsvpFormError && (
+                <div className="p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                  {rsvpFormError}
+                </div>
+              )}
               <div className="flex gap-2">
+                <button
+                  onClick={handleSendRSVPForm}
+                  disabled={rsvpFormSending || !family.primary_contact_phone}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FileText className="h-4 w-4" />
+                  {rsvpFormSending ? 'Generating...' : 'Send RSVP Form'}
+                </button>
                 <button
                   onClick={() => {
                     if (family.primary_contact_phone) {
@@ -145,12 +192,16 @@ export function FamilyDetailDrawer({
                       );
                     }
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-all"
+                  disabled={!family.primary_contact_phone}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Send RSVP Reminder"
                 >
                   <MessageCircle className="h-4 w-4" />
-                  Send RSVP Reminder
                 </button>
               </div>
+              <p className="text-xs text-gray-500 mt-1">
+                RSVP form includes travel and accommodation details
+              </p>
             </div>
           </div>
 

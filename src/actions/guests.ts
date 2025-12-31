@@ -804,6 +804,116 @@ Please let us know at your earliest convenience. Looking forward to celebrating 
 }
 
 /**
+ * Generate RSVP form link for a family member
+ * Creates/updates invitation token and returns the RSVP URL
+ */
+export async function generateRSVPFormLink(guestId: string, eventId: string) {
+  const supabase = await createClient();
+
+  // Generate a secure random token
+  const token = crypto.randomUUID();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiry
+
+  // Update guest with invitation token
+  const { error } = await supabase
+    .from('guests')
+    .update({
+      invitation_token: token,
+      invitation_expires_at: expiresAt.toISOString(),
+    })
+    .eq('id', guestId);
+
+  if (error) {
+    console.error('Error generating RSVP link:', error);
+    return { error: 'Failed to generate RSVP link' };
+  }
+
+  // Build the RSVP URL (relative, will be combined with origin on client)
+  const rsvpUrl = `/rsvp/${token}`;
+
+  return { success: true, rsvpUrl, token };
+}
+
+/**
+ * Generate RSVP form links for all family members and return WhatsApp share URL
+ */
+export async function sendRSVPFormToFamily(
+  familyId: string,
+  eventId: string,
+  eventName: string,
+  eventDate: string,
+  baseUrl: string
+) {
+  const supabase = await createClient();
+
+  // Get family details
+  const { data: family } = await supabase
+    .from('wedding_family_groups')
+    .select('family_name, primary_contact_phone')
+    .eq('id', familyId)
+    .single();
+
+  if (!family) {
+    return { error: 'Family not found' };
+  }
+
+  if (!family.primary_contact_phone) {
+    return { error: 'No phone number found for this family' };
+  }
+
+  // Get all family members
+  const { data: members } = await supabase
+    .from('guests')
+    .select('id, first_name, last_name')
+    .eq('family_group_name', family.family_name)
+    .eq('event_id', eventId);
+
+  if (!members || members.length === 0) {
+    return { error: 'No family members found' };
+  }
+
+  // Generate tokens for all members
+  const memberLinks: { name: string; url: string }[] = [];
+
+  for (const member of members) {
+    const result = await generateRSVPFormLink(member.id, eventId);
+    if (result.success && result.rsvpUrl) {
+      const name = `${member.first_name || ''} ${member.last_name || ''}`.trim();
+      memberLinks.push({
+        name: name || 'Guest',
+        url: `${baseUrl}${result.rsvpUrl}`,
+      });
+    }
+  }
+
+  if (memberLinks.length === 0) {
+    return { error: 'Failed to generate RSVP links' };
+  }
+
+  // Build WhatsApp message with all member links
+  let message = `Hi ${family.family_name} family! 🎉
+
+You're invited to ${eventName} on ${eventDate}!
+
+Please fill out the RSVP form for each family member:
+`;
+
+  memberLinks.forEach((link, index) => {
+    message += `\n${index + 1}. ${link.name}: ${link.url}`;
+  });
+
+  message += `\n\nThe form includes travel and accommodation details. Looking forward to celebrating with you!`;
+
+  const whatsappUrl = `https://wa.me/${family.primary_contact_phone.replace(
+    /\D/g,
+    ''
+  )}?text=${encodeURIComponent(message)}`;
+
+  return { success: true, whatsappUrl, memberLinks };
+}
+
+/**
  * Import families and members from CSV
  *
  * CSV Format:
