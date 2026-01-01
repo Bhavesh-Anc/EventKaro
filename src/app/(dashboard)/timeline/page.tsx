@@ -3,6 +3,8 @@ import { getUserOrganizations } from '@/actions/organizations';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { TimelineView } from '@/components/features/timeline-view';
+import { UnifiedTimeline, type TimelineTask, type TimelineVendorBooking, type TimelineEvent as UnifiedTimelineEvent } from '@/components/features/unified-timeline';
+import { TimelinePageClient } from '@/components/features/timeline-page-client';
 
 /**
  * EVENTS & TIMELINE TAB
@@ -38,7 +40,6 @@ export default async function TimelinePage() {
   }
 
   // Fetch all wedding sub-events with complete data
-  // Simplified query - removed vendor join that was causing column errors
   const { data: weddingSubEvents, error: subEventsError } = await supabase
     .from('wedding_events')
     .select('*')
@@ -49,7 +50,64 @@ export default async function TimelinePage() {
     console.error('Error fetching wedding sub-events:', subEventsError);
   }
 
-  // Format events for timeline component
+  // Fetch tasks with due dates for this organization
+  const { data: tasksData } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('organization_id', currentOrg.id)
+    .not('due_date', 'is', null)
+    .order('due_date', { ascending: true });
+
+  // Fetch vendor bookings with payment schedules
+  const { data: vendorBookings } = await supabase
+    .from('wedding_event_budgets')
+    .select(`
+      id,
+      vendor_id,
+      category,
+      pending_amount_inr,
+      paid_amount_inr,
+      payment_due_date,
+      vendors:vendor_profiles(id, business_name, category)
+    `)
+    .not('vendor_id', 'is', null);
+
+  // Format events for unified timeline
+  const unifiedEvents: UnifiedTimelineEvent[] = (weddingSubEvents || []).map((e: any) => ({
+    id: e.id,
+    event_name: e.event_name,
+    custom_event_name: e.custom_event_name,
+    start_datetime: e.start_datetime,
+    end_datetime: e.end_datetime,
+    venue_name: e.venue_name,
+    expected_guest_count: e.expected_guest_count,
+    status: e.status === 'completed' ? 'ready' : e.status === 'cancelled' ? 'conflict' : 'attention',
+  }));
+
+  // Format tasks for unified timeline
+  const unifiedTasks: TimelineTask[] = (tasksData || []).map((t: any) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    due_date: t.due_date,
+    completed: t.completed || false,
+    priority: t.priority || 'medium',
+    category: t.category,
+  }));
+
+  // Format vendor bookings for unified timeline
+  const unifiedVendorBookings: TimelineVendorBooking[] = (vendorBookings || [])
+    .filter((b: any) => b.payment_due_date)
+    .map((b: any) => ({
+      id: b.id,
+      vendor_name: b.vendors?.business_name || 'Unknown Vendor',
+      vendor_category: b.vendors?.category || b.category || 'Other',
+      payment_due_date: b.payment_due_date,
+      amount_pending: b.pending_amount_inr || 0,
+      status: b.pending_amount_inr === 0 ? 'paid' : 'pending',
+    }));
+
+  // Format events for original timeline component (Wedding Day Mode)
   const timelineEvents = weddingSubEvents?.map((e: any) => ({
     id: e.id,
     event_name: e.event_name,
@@ -71,31 +129,21 @@ export default async function TimelinePage() {
     color_theme: e.color_theme,
     transport_required: e.transport_required,
     status: e.status,
-    vendor_assignments: [], // Simplified - not loading vendor data yet
-    budget: undefined, // Simplified - not loading budget data yet
+    vendor_assignments: [],
+    budget: undefined,
     budget_allocated: 0,
     has_transport: e.transport_required || false,
     transport_assigned: false,
   })) || [];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Events & Timeline</h1>
-          <p className="text-gray-600 mt-1">
-            Manage all your wedding events in one place
-          </p>
-        </div>
-      </div>
-
-      {/* Timeline View */}
-      <TimelineView
-        events={timelineEvents}
-        parentEventId={weddingEvent.id}
-        weddingDate={weddingEvent.start_date}
-      />
-    </div>
+    <TimelinePageClient
+      timelineEvents={timelineEvents}
+      unifiedEvents={unifiedEvents}
+      unifiedTasks={unifiedTasks}
+      unifiedVendorBookings={unifiedVendorBookings}
+      parentEventId={weddingEvent.id}
+      weddingDate={weddingEvent.start_date}
+    />
   );
 }

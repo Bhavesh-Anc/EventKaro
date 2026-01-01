@@ -57,6 +57,9 @@ export async function logout() {
   redirect('/login');
 }
 
+// Alias for signOut
+export const signOut = logout;
+
 export async function getUser() {
   const supabase = await createClient();
   const {
