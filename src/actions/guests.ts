@@ -52,6 +52,15 @@ export async function addGuest(formData: FormData) {
   const groupId = formData.get('guest_group_id') as string || null;
   const plusOneAllowed = formData.get('plus_one_allowed') === 'on';
 
+  // New enhanced fields
+  const relationship = formData.get('relationship') as string || null;
+  const relationshipDetail = formData.get('relationship_detail') as string || null;
+  const ageGroup = formData.get('age_group') as string || null;
+  const priority = formData.get('priority') as string || 'standard';
+  const whatsappNumber = formData.get('whatsapp_number') as string || null;
+  const preferredContact = formData.get('preferred_contact') as string || 'email';
+  const notes = formData.get('notes') as string || null;
+
   const { error } = await supabase
     .from('guests')
     .insert({
@@ -63,6 +72,14 @@ export async function addGuest(formData: FormData) {
       guest_group_id: groupId,
       plus_one_allowed: plusOneAllowed,
       source: 'manual',
+      // New fields
+      relationship,
+      relationship_detail: relationshipDetail,
+      age_group: ageGroup,
+      priority,
+      whatsapp_number: whatsappNumber,
+      preferred_contact: preferredContact,
+      notes,
     });
 
   if (error) {
@@ -911,6 +928,327 @@ Please fill out the RSVP form for each family member:
   )}?text=${encodeURIComponent(message)}`;
 
   return { success: true, whatsappUrl, memberLinks };
+}
+
+// ============================================================================
+// PER-EVENT RSVP TRACKING
+// ============================================================================
+
+/**
+ * Get all wedding events for per-event RSVP tracking
+ */
+export async function getWeddingEventsForRSVP(parentEventId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('wedding_events')
+    .select('id, event_name, custom_event_name, start_datetime, venue_name')
+    .eq('parent_event_id', parentEventId)
+    .order('sequence_order', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching wedding events:', error);
+    return [];
+  }
+  return data;
+}
+
+/**
+ * Get per-event RSVP status for a guest
+ */
+export async function getGuestEventRSVPs(guestId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('guest_event_rsvp')
+    .select(`
+      *,
+      wedding_event:wedding_events(id, event_name, custom_event_name, start_datetime)
+    `)
+    .eq('guest_id', guestId);
+
+  if (error) {
+    console.error('Error fetching guest event RSVPs:', error);
+    return [];
+  }
+  return data;
+}
+
+/**
+ * Update RSVP status for a specific guest and wedding event
+ */
+export async function updateGuestEventRSVP(
+  guestId: string,
+  weddingEventId: string,
+  status: 'pending' | 'accepted' | 'declined' | 'tentative',
+  additionalData?: {
+    dietaryPreference?: string;
+    plusOneAttending?: boolean;
+    transportationNeeded?: boolean;
+    arrivalTime?: string;
+    notes?: string;
+  }
+) {
+  const supabase = await createClient();
+
+  const updateData: any = {
+    rsvp_status: status,
+    rsvp_date: new Date().toISOString(),
+  };
+
+  if (additionalData) {
+    if (additionalData.dietaryPreference !== undefined) {
+      updateData.dietary_preference = additionalData.dietaryPreference;
+    }
+    if (additionalData.plusOneAttending !== undefined) {
+      updateData.plus_one_attending = additionalData.plusOneAttending;
+    }
+    if (additionalData.transportationNeeded !== undefined) {
+      updateData.transportation_needed = additionalData.transportationNeeded;
+    }
+    if (additionalData.arrivalTime !== undefined) {
+      updateData.arrival_time = additionalData.arrivalTime;
+    }
+    if (additionalData.notes !== undefined) {
+      updateData.notes = additionalData.notes;
+    }
+  }
+
+  // Upsert - insert if doesn't exist, update if does
+  const { error } = await supabase
+    .from('guest_event_rsvp')
+    .upsert({
+      guest_id: guestId,
+      wedding_event_id: weddingEventId,
+      ...updateData,
+    }, {
+      onConflict: 'guest_id,wedding_event_id',
+    });
+
+  if (error) {
+    console.error('Error updating guest event RSVP:', error);
+    return { error: error.message };
+  }
+
+  revalidatePath('/guests');
+  revalidatePath('/events');
+  return { success: true };
+}
+
+/**
+ * Bulk update per-event RSVPs for a guest (e.g., attending all events)
+ */
+export async function bulkUpdateGuestEventRSVPs(
+  guestId: string,
+  weddingEventIds: string[],
+  status: 'pending' | 'accepted' | 'declined' | 'tentative'
+) {
+  const supabase = await createClient();
+
+  const updates = weddingEventIds.map(eventId => ({
+    guest_id: guestId,
+    wedding_event_id: eventId,
+    rsvp_status: status,
+    rsvp_date: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from('guest_event_rsvp')
+    .upsert(updates, {
+      onConflict: 'guest_id,wedding_event_id',
+    });
+
+  if (error) {
+    console.error('Error bulk updating guest event RSVPs:', error);
+    return { error: error.message };
+  }
+
+  revalidatePath('/guests');
+  return { success: true };
+}
+
+/**
+ * Get event-wise RSVP stats for an event
+ */
+export async function getEventWiseRSVPStats(parentEventId: string) {
+  const supabase = await createClient();
+
+  // Get all wedding events
+  const { data: weddingEvents } = await supabase
+    .from('wedding_events')
+    .select('id, event_name, custom_event_name, start_datetime')
+    .eq('parent_event_id', parentEventId)
+    .order('sequence_order', { ascending: true });
+
+  if (!weddingEvents) return [];
+
+  // Get RSVP counts for each event
+  const statsPromises = weddingEvents.map(async (event) => {
+    const { data: rsvps } = await supabase
+      .from('guest_event_rsvp')
+      .select('rsvp_status')
+      .eq('wedding_event_id', event.id);
+
+    const counts = {
+      total: rsvps?.length || 0,
+      accepted: rsvps?.filter(r => r.rsvp_status === 'accepted').length || 0,
+      declined: rsvps?.filter(r => r.rsvp_status === 'declined').length || 0,
+      pending: rsvps?.filter(r => r.rsvp_status === 'pending').length || 0,
+      tentative: rsvps?.filter(r => r.rsvp_status === 'tentative').length || 0,
+    };
+
+    return {
+      ...event,
+      eventName: event.custom_event_name || event.event_name,
+      ...counts,
+    };
+  });
+
+  return Promise.all(statsPromises);
+}
+
+/**
+ * Initialize per-event RSVPs for a guest across all wedding events
+ */
+export async function initializeGuestEventRSVPs(guestId: string, parentEventId: string) {
+  const supabase = await createClient();
+
+  // Get all wedding events
+  const { data: weddingEvents } = await supabase
+    .from('wedding_events')
+    .select('id')
+    .eq('parent_event_id', parentEventId);
+
+  if (!weddingEvents || weddingEvents.length === 0) return { success: true };
+
+  // Create pending RSVP entries for all events
+  const rsvpEntries = weddingEvents.map(event => ({
+    guest_id: guestId,
+    wedding_event_id: event.id,
+    rsvp_status: 'pending',
+  }));
+
+  const { error } = await supabase
+    .from('guest_event_rsvp')
+    .upsert(rsvpEntries, {
+      onConflict: 'guest_id,wedding_event_id',
+      ignoreDuplicates: true,
+    });
+
+  if (error) {
+    console.error('Error initializing guest event RSVPs:', error);
+    return { error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Get guest summary with per-event attendance
+ */
+export async function getGuestWithEventAttendance(guestId: string) {
+  const supabase = await createClient();
+
+  const { data: guest, error } = await supabase
+    .from('guests')
+    .select(`
+      *,
+      guest_event_rsvps:guest_event_rsvp(
+        id,
+        rsvp_status,
+        rsvp_date,
+        plus_one_attending,
+        dietary_preference,
+        transportation_needed,
+        wedding_event:wedding_events(
+          id,
+          event_name,
+          custom_event_name,
+          start_datetime,
+          venue_name
+        )
+      )
+    `)
+    .eq('id', guestId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching guest with event attendance:', error);
+    return null;
+  }
+
+  return guest;
+}
+
+/**
+ * Get age group statistics for catering planning
+ */
+export async function getAgeGroupStats(eventId: string) {
+  const supabase = await createClient();
+
+  const { data: guests } = await supabase
+    .from('guests')
+    .select('age_group, rsvp_status')
+    .eq('event_id', eventId);
+
+  if (!guests) return {
+    child: { total: 0, attending: 0 },
+    teen: { total: 0, attending: 0 },
+    adult: { total: 0, attending: 0 },
+    senior: { total: 0, attending: 0 },
+    unknown: { total: 0, attending: 0 },
+  };
+
+  const stats: Record<string, { total: number; attending: number }> = {
+    child: { total: 0, attending: 0 },
+    teen: { total: 0, attending: 0 },
+    adult: { total: 0, attending: 0 },
+    senior: { total: 0, attending: 0 },
+    unknown: { total: 0, attending: 0 },
+  };
+
+  guests.forEach(guest => {
+    const group = guest.age_group || 'unknown';
+    if (stats[group]) {
+      stats[group].total++;
+      if (guest.rsvp_status === 'accepted') {
+        stats[group].attending++;
+      }
+    }
+  });
+
+  return stats;
+}
+
+/**
+ * Get relationship breakdown for guest list
+ */
+export async function getRelationshipStats(eventId: string) {
+  const supabase = await createClient();
+
+  const { data: guests } = await supabase
+    .from('guests')
+    .select('relationship, priority, rsvp_status')
+    .eq('event_id', eventId);
+
+  if (!guests) return {};
+
+  const stats: Record<string, { total: number; attending: number; byPriority: Record<string, number> }> = {};
+
+  guests.forEach(guest => {
+    const rel = guest.relationship || 'other';
+    if (!stats[rel]) {
+      stats[rel] = { total: 0, attending: 0, byPriority: {} };
+    }
+    stats[rel].total++;
+    if (guest.rsvp_status === 'accepted') {
+      stats[rel].attending++;
+    }
+    const priority = guest.priority || 'standard';
+    stats[rel].byPriority[priority] = (stats[rel].byPriority[priority] || 0) + 1;
+  });
+
+  return stats;
 }
 
 /**
