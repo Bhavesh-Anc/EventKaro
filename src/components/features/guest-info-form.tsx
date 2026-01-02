@@ -11,6 +11,26 @@ interface GuestInfoFormProps {
   updateAction: (formData: FormData) => Promise<any>;
 }
 
+const RELATIONSHIP_OPTIONS = [
+  { group: "Bride's Side", options: [
+    { value: 'bride_family', label: "Bride's Family" },
+    { value: 'bride_relative', label: "Bride's Relative" },
+    { value: 'bride_friend', label: "Bride's Friend" },
+  ]},
+  { group: "Groom's Side", options: [
+    { value: 'groom_family', label: "Groom's Family" },
+    { value: 'groom_relative', label: "Groom's Relative" },
+    { value: 'groom_friend', label: "Groom's Friend" },
+  ]},
+  { group: "Common", options: [
+    { value: 'mutual_friend', label: "Mutual Friend" },
+    { value: 'colleague', label: "Colleague" },
+    { value: 'neighbor', label: "Neighbor" },
+    { value: 'vip', label: "VIP Guest" },
+    { value: 'other', label: "Other" },
+  ]},
+];
+
 export function GuestInfoForm({
   guest,
   eventId,
@@ -65,15 +85,112 @@ export function GuestInfoForm({
         />
       </div>
 
-      <div>
-        <Label htmlFor="phone">Phone</Label>
-        <Input
-          id="phone"
-          name="phone"
-          type="tel"
-          defaultValue={guest.phone || ''}
-          disabled={isPending}
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            name="phone"
+            type="tel"
+            defaultValue={guest.phone || ''}
+            disabled={isPending}
+          />
+        </div>
+        <div>
+          <Label htmlFor="whatsapp_number">WhatsApp Number</Label>
+          <Input
+            id="whatsapp_number"
+            name="whatsapp_number"
+            type="tel"
+            defaultValue={guest.whatsapp_number || ''}
+            disabled={isPending}
+            placeholder="Leave empty if same as phone"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="relationship">Relationship</Label>
+          <select
+            id="relationship"
+            name="relationship"
+            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            defaultValue={guest.relationship || ''}
+            disabled={isPending}
+          >
+            <option value="">Select relationship</option>
+            {RELATIONSHIP_OPTIONS.map(group => (
+              <optgroup key={group.group} label={group.group}>
+                {group.options.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="relationship_detail">Relationship Detail</Label>
+          <Input
+            id="relationship_detail"
+            name="relationship_detail"
+            type="text"
+            defaultValue={guest.relationship_detail || ''}
+            disabled={isPending}
+            placeholder="e.g., Mama's son"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <Label htmlFor="age_group">Age Group</Label>
+          <select
+            id="age_group"
+            name="age_group"
+            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            defaultValue={guest.age_group || ''}
+            disabled={isPending}
+          >
+            <option value="">Select age</option>
+            <option value="child">Child (0-12)</option>
+            <option value="teen">Teen (13-19)</option>
+            <option value="adult">Adult (20-59)</option>
+            <option value="senior">Senior (60+)</option>
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="priority">Priority</Label>
+          <select
+            id="priority"
+            name="priority"
+            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            defaultValue={guest.priority || 'standard'}
+            disabled={isPending}
+          >
+            <option value="vip">VIP - Must attend</option>
+            <option value="high">High Priority</option>
+            <option value="standard">Standard</option>
+            <option value="optional">Optional</option>
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="preferred_contact">Preferred Contact</Label>
+          <select
+            id="preferred_contact"
+            name="preferred_contact"
+            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            defaultValue={guest.preferred_contact || 'whatsapp'}
+            disabled={isPending}
+          >
+            <option value="whatsapp">WhatsApp</option>
+            <option value="phone">Phone Call</option>
+            <option value="email">Email</option>
+            <option value="sms">SMS</option>
+          </select>
+        </div>
       </div>
 
       {groups.length > 0 && (

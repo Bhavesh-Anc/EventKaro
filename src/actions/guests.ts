@@ -270,6 +270,14 @@ export async function updateGuest(formData: FormData) {
   const groupId = formData.get('guest_group_id') as string || null;
   const notes = formData.get('notes') as string || null;
 
+  // Enhanced fields
+  const relationship = formData.get('relationship') as string || null;
+  const relationshipDetail = formData.get('relationship_detail') as string || null;
+  const ageGroup = formData.get('age_group') as string || null;
+  const priority = formData.get('priority') as string || null;
+  const whatsappNumber = formData.get('whatsapp_number') as string || null;
+  const preferredContact = formData.get('preferred_contact') as string || null;
+
   const { error } = await supabase
     .from('guests')
     .update({
@@ -279,6 +287,13 @@ export async function updateGuest(formData: FormData) {
       phone,
       guest_group_id: groupId,
       notes,
+      // Enhanced fields
+      relationship,
+      relationship_detail: relationshipDetail,
+      age_group: ageGroup,
+      priority,
+      whatsapp_number: whatsappNumber,
+      preferred_contact: preferredContact,
     })
     .eq('id', guestId);
 
