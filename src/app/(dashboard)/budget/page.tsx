@@ -3,8 +3,10 @@ import { getUserOrganizations } from '@/actions/organizations';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { BudgetClient } from '@/components/features/budget-client';
+import { BudgetContributions } from '@/components/features/budget-contributions';
 import type { CategoryBudget } from '@/lib/budget-calculations';
 import { aggregateBudgetSummary } from '@/lib/budget-calculations';
+import { getEventContributions, getContributionSummary } from '@/actions/payments';
 
 export default async function BudgetPage() {
   const user = await getUser();
@@ -88,13 +90,37 @@ export default async function BudgetPage() {
     ? Math.max(0, Math.ceil((new Date(eventDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
 
+  // Fetch contributions data
+  const [contributions, contributionSummary] = await Promise.all([
+    getEventContributions(eventId),
+    getContributionSummary(eventId),
+  ]);
+
   return (
-    <BudgetClient
-      summary={summary}
-      categories={categories}
-      budgetEntries={budgetEntries || []}
-      eventId={eventId}
-      daysToEvent={daysToEvent}
-    />
+    <div className="space-y-8">
+      <BudgetClient
+        summary={summary}
+        categories={categories}
+        budgetEntries={budgetEntries || []}
+        eventId={eventId}
+        daysToEvent={daysToEvent}
+      />
+
+      {/* Family Contributions Section */}
+      <div className="mt-8">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Family Contributions</h2>
+          <p className="text-gray-600 mt-1">
+            Track pledges and contributions from both sides of the family
+          </p>
+        </div>
+        <BudgetContributions
+          eventId={eventId}
+          contributions={contributions}
+          summary={contributionSummary}
+          totalBudget={totalBudget}
+        />
+      </div>
+    </div>
   );
 }

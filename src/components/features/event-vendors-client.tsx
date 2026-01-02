@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BookVendorModal } from './book-vendor-modal';
 import { RecordPaymentModal } from './record-payment-modal';
-import { updateVendorBookingStatus } from '@/actions/vendors';
+import { VendorQuoteComparison } from './vendor-quote-comparison';
+import { updateVendorBookingStatus, acceptVendorQuote, rejectVendorQuote } from '@/actions/vendors';
 import { EmptyState } from '@/components/ui/empty-state';
 
 interface VendorBooking {
@@ -64,6 +65,8 @@ interface Props {
   stats: EventVendorsStats;
 }
 
+type ViewTab = 'bookings' | 'compare';
+
 export function EventVendorsClient({
   eventId,
   eventTitle,
@@ -74,6 +77,7 @@ export function EventVendorsClient({
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [activeTab, setActiveTab] = useState<ViewTab>('bookings');
   const [bookingModal, setBookingModal] = useState<{
     isOpen: boolean;
     vendorId: string;
@@ -136,6 +140,45 @@ export function EventVendorsClient({
     });
   };
 
+  const handleAcceptQuote = async (quoteId: string) => {
+    startTransition(async () => {
+      await acceptVendorQuote(quoteId, eventId);
+      router.refresh();
+    });
+  };
+
+  const handleRejectQuote = async (quoteId: string) => {
+    startTransition(async () => {
+      await rejectVendorQuote(quoteId);
+      router.refresh();
+    });
+  };
+
+  const handleContactVendor = (vendorId: string) => {
+    router.push(`/vendors/${vendorId}`);
+  };
+
+  // Transform quotes to match VendorQuoteComparison expected format
+  const quotesForComparison = pendingQuotes.map(q => ({
+    id: q.id,
+    vendor_id: q.vendor_id,
+    vendor: {
+      id: q.vendor?.id || '',
+      business_name: q.vendor?.business_name || 'Unknown',
+      business_type: q.vendor?.business_type || 'Other',
+      city: q.vendor?.city || 'Unknown',
+      phone: q.vendor?.phone,
+      email: q.vendor?.email,
+      average_rating: undefined,
+      total_reviews: undefined,
+    },
+    service_type: q.service_type,
+    status: q.status as 'pending' | 'quoted' | 'accepted' | 'rejected' | 'expired',
+    quoted_price_inr: q.quoted_price_inr,
+    vendor_response: q.vendor_response,
+    created_at: q.created_at,
+  }));
+
   return (
     <div className="space-y-8">
       <div>
@@ -189,7 +232,45 @@ export function EventVendorsClient({
         </div>
       </div>
 
-      {/* Booked Vendors */}
+      {/* View Tabs */}
+      <div className="flex gap-2 border-b">
+        <button
+          onClick={() => setActiveTab('bookings')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            activeTab === 'bookings'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Vendor Bookings
+        </button>
+        <button
+          onClick={() => setActiveTab('compare')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            activeTab === 'compare'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Quote Comparison
+          {pendingQuotes.filter(q => q.status === 'quoted').length > 0 && (
+            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
+              {pendingQuotes.filter(q => q.status === 'quoted').length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'compare' ? (
+        <VendorQuoteComparison
+          quotes={quotesForComparison}
+          onAccept={handleAcceptQuote}
+          onReject={handleRejectQuote}
+          onContact={handleContactVendor}
+        />
+      ) : (
+        <>
+          {/* Booked Vendors */}
       <div className="rounded-lg border p-6">
         <h3 className="text-lg font-semibold mb-4">Booked Vendors</h3>
         {vendorBookings.length === 0 ? (
@@ -481,6 +562,8 @@ export function EventVendorsClient({
           <li>- Maintain regular communication with booked vendors</li>
         </ul>
       </div>
+        </>
+      )}
 
       {/* Book Vendor Modal */}
       <BookVendorModal

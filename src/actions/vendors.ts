@@ -1324,3 +1324,80 @@ export async function getEventQuotedRequests(eventId: string) {
 
   return data || [];
 }
+
+/**
+ * Accept a vendor quote and create a booking
+ */
+export async function acceptVendorQuote(quoteId: string, eventId: string) {
+  const supabase = await createClient();
+
+  // Get the quote details
+  const { data: quote, error: quoteError } = await supabase
+    .from('quote_requests')
+    .select('*')
+    .eq('id', quoteId)
+    .single();
+
+  if (quoteError || !quote) {
+    return { error: 'Quote not found' };
+  }
+
+  // Update quote status to accepted
+  const { error: updateError } = await supabase
+    .from('quote_requests')
+    .update({ status: 'accepted' })
+    .eq('id', quoteId);
+
+  if (updateError) {
+    return { error: updateError.message };
+  }
+
+  // Create a vendor booking
+  const { error: bookingError } = await supabase
+    .from('vendor_bookings')
+    .insert({
+      vendor_id: quote.vendor_id,
+      event_id: eventId,
+      quote_request_id: quoteId,
+      amount_inr: quote.quoted_price_inr || 0,
+      status: 'pending',
+      payment_status: 'unpaid',
+    });
+
+  if (bookingError) {
+    console.error('Error creating booking from quote:', bookingError);
+    return { error: bookingError.message };
+  }
+
+  revalidatePath(`/events/${eventId}/vendors`);
+  return { success: true };
+}
+
+/**
+ * Reject a vendor quote
+ */
+export async function rejectVendorQuote(quoteId: string) {
+  const supabase = await createClient();
+
+  // Get the quote to find the event ID for revalidation
+  const { data: quote } = await supabase
+    .from('quote_requests')
+    .select('event_id')
+    .eq('id', quoteId)
+    .single();
+
+  const { error } = await supabase
+    .from('quote_requests')
+    .update({ status: 'rejected' })
+    .eq('id', quoteId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (quote?.event_id) {
+    revalidatePath(`/events/${quote.event_id}/vendors`);
+  }
+
+  return { success: true };
+}
