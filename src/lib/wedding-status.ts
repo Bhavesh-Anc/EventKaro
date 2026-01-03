@@ -62,6 +62,11 @@ export interface WeddingEventData {
 
 /**
  * Calculate the status of a wedding event
+ *
+ * Status levels:
+ * - ready: Event has venue set (minimum requirement)
+ * - attention: Only for events within 14 days that are missing critical items
+ * - conflict: Time/vendor conflicts with other events
  */
 export function calculateEventStatus(
   event: WeddingEventData,
@@ -82,39 +87,28 @@ export function calculateEventStatus(
     };
   }
 
-  // Check for missing critical items
+  // Check if event is within 14 days - only then show attention for missing items
+  const eventDate = new Date(event.start_datetime);
+  const now = new Date();
+  const daysUntilEvent = Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const isUrgent = daysUntilEvent <= 14 && daysUntilEvent >= 0;
 
-  // 1. Guest subset
-  if (!event.guest_subset || event.expected_guest_count === 0) {
-    issues.push('Guest subset not defined');
-  }
-
-  // 2. Vendor assignments
-  if (!event.vendor_assignments || event.vendor_assignments.length === 0) {
-    issues.push('No vendors assigned');
-  } else {
-    // Check if vendors are confirmed
-    const unconfirmedVendors = event.vendor_assignments.filter(
-      (va) => va.status !== 'confirmed'
-    );
-    if (unconfirmedVendors.length > 0) {
-      issues.push(`${unconfirmedVendors.length} vendor(s) not confirmed`);
+  // Critical items only checked for urgent events (within 14 days)
+  if (isUrgent) {
+    // 1. Venue is critical for upcoming events
+    if (!event.venue_name) {
+      issues.push('Venue not set - event in ' + daysUntilEvent + ' days');
     }
-  }
 
-  // 3. Transport
-  if (event.has_transport && !event.transport_assigned) {
-    issues.push('Transport not assigned');
-  }
+    // 2. Transport (only if explicitly required)
+    if (event.transport_required && !event.transport_assigned) {
+      issues.push('Transport not assigned');
+    }
 
-  // 4. Budget
-  if (!event.budget_allocated || event.budget_allocated === 0) {
-    issues.push('Budget not set');
-  }
-
-  // 5. Venue
-  if (!event.venue_name) {
-    issues.push('Venue not specified');
+    // 3. Vendor assignments (only warn if none and urgent)
+    if (!event.vendor_assignments || event.vendor_assignments.length === 0) {
+      issues.push('No vendors assigned yet');
+    }
   }
 
   // Determine final status

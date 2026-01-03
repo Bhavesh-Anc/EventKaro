@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { format } from 'date-fns';
 import {
   Home,
   Users,
@@ -9,21 +10,77 @@ import {
   IndianRupee,
   Store,
   ListTodo,
-  Settings
+  Settings,
+  Heart
 } from 'lucide-react';
 
-const navigation = [
+interface WeddingInfo {
+  id: string;
+  title: string;
+  date: string;
+  venueName: string | null;
+  venueCity: string | null;
+  daysRemaining: number;
+}
+
+interface Props {
+  wedding: WeddingInfo | null;
+}
+
+interface NavSubItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  subItems?: NavSubItem[];
+}
+
+const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Guest Management', href: '/guests', icon: Users },
   { name: 'Events & Timeline', href: '/timeline', icon: Calendar },
   { name: 'Budget Tracker', href: '/budget', icon: IndianRupee },
-  { name: 'Vendors', href: '/vendors', icon: Store },
+  { name: 'Vendors', href: '/vendors', icon: Store, subItems: [
+    { name: 'Saved Vendors', href: '/vendors/saved', icon: Heart },
+  ] },
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
-export function WeddingSidebar() {
+// Pages where the wedding sidebar should NOT appear
+const hiddenOnRoutes = [
+  '/events/new',
+  '/events/new/wedding',
+  '/events/new/other',
+  '/organizations/new',
+];
+
+export function WeddingSidebar({ wedding }: Props) {
   const pathname = usePathname();
+
+  // Don't show sidebar on certain pages (like create event flow)
+  const shouldHide = hiddenOnRoutes.some(route => pathname?.startsWith(route));
+  if (shouldHide) {
+    return null;
+  }
+
+  // Format wedding date
+  const formattedDate = wedding?.date
+    ? format(new Date(wedding.date), 'd MMM yyyy')
+    : 'Not set';
+
+  // Get days remaining text
+  const getDaysText = () => {
+    if (!wedding) return '';
+    if (wedding.daysRemaining === 0) return "It's today!";
+    if (wedding.daysRemaining === 1) return '1 day remaining';
+    return `${wedding.daysRemaining} days remaining`;
+  };
 
   return (
     <div className="flex h-screen w-64 flex-col bg-white border-r border-gray-200">
@@ -45,30 +102,72 @@ export function WeddingSidebar() {
           const Icon = item.icon;
 
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`
-                flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                ${isActive
-                  ? 'bg-gradient-to-r from-rose-700 to-rose-900 text-white shadow-sm'
-                  : 'text-gray-700 hover:bg-gray-100'
-                }
-              `}
-            >
-              <Icon className="h-5 w-5" />
-              {item.name}
-            </Link>
+            <div key={item.name}>
+              <Link
+                href={item.href}
+                className={`
+                  flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
+                  ${isActive
+                    ? 'bg-gradient-to-r from-rose-700 to-rose-900 text-white shadow-sm'
+                    : 'text-gray-700 hover:bg-gray-100'
+                  }
+                `}
+              >
+                <Icon className="h-5 w-5" />
+                {item.name}
+              </Link>
+              {/* Sub-items */}
+              {item.subItems && isActive && (
+                <div className="ml-8 mt-1 space-y-1">
+                  {item.subItems.map((subItem) => {
+                    const SubIcon = subItem.icon;
+                    const isSubActive = pathname === subItem.href;
+                    return (
+                      <Link
+                        key={subItem.name}
+                        href={subItem.href}
+                        className={`
+                          flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors
+                          ${isSubActive
+                            ? 'bg-rose-100 text-rose-800 font-medium'
+                            : 'text-gray-600 hover:bg-gray-100'
+                          }
+                        `}
+                      >
+                        <SubIcon className="h-4 w-4" />
+                        {subItem.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
 
       {/* Wedding Date Card */}
-      <div className="m-3 rounded-lg bg-amber-50 border border-amber-200 p-4">
-        <p className="text-xs font-medium text-amber-900 mb-1">Wedding Date</p>
-        <p className="text-lg font-bold text-amber-900">18 Feb 2025</p>
-        <p className="text-xs text-amber-700 mt-1">45 days remaining</p>
-      </div>
+      {wedding ? (
+        <div className="m-3 rounded-lg bg-amber-50 border border-amber-200 p-4">
+          <p className="text-xs font-medium text-amber-900 mb-1">Wedding Date</p>
+          <p className="text-lg font-bold text-amber-900">{formattedDate}</p>
+          <p className="text-xs text-amber-700 mt-1">{getDaysText()}</p>
+          {wedding.venueCity && (
+            <p className="text-xs text-amber-600 mt-1">📍 {wedding.venueCity}</p>
+          )}
+        </div>
+      ) : (
+        <div className="m-3 rounded-lg bg-gray-50 border border-gray-200 p-4">
+          <p className="text-xs font-medium text-gray-600 mb-1">Wedding Date</p>
+          <p className="text-sm text-gray-500 italic">No wedding created yet</p>
+          <Link
+            href="/events/new"
+            className="text-xs text-rose-600 hover:text-rose-700 font-semibold mt-2 inline-block"
+          >
+            Create Wedding →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

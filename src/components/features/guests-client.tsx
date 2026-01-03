@@ -1,16 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, List, Truck, Plus, Filter, Search, Upload } from 'lucide-react';
+import { Users, List, Truck, Plus, Filter, Search, Upload, Send } from 'lucide-react';
 import { FamilyCard, type FamilyCardData } from '@/components/features/family-card';
 import { FamilyDetailDrawer, type FamilyMember, type RSVPHistoryEntry } from '@/components/features/family-detail-drawer';
 import { IndividualsView, type IndividualGuest } from '@/components/features/individuals-view';
-import { LogisticsView, type LogisticsGuest, type HotelAssignment, type PickupAssignment } from '@/components/features/logistics-view';
+import { LogisticsView, type LogisticsGuest, type HotelAssignment, type PickupAssignment, type GuestTravelDetails } from '@/components/features/logistics-view';
 import { CSVImportModal } from '@/components/features/csv-import-modal';
+import { AddFamilyModal } from '@/components/features/add-family-modal';
+import { GuestDetailDrawer, type GuestDetail } from '@/components/features/guest-detail-drawer';
+import { RSVPStatsCards } from '@/components/features/rsvp-stats';
+import { BulkRSVPActions } from '@/components/features/bulk-rsvp-actions';
 import { useRouter } from 'next/navigation';
 
 type ViewMode = 'families' | 'individuals' | 'logistics';
 type FilterMode = 'all' | 'pending' | 'outstation' | 'vip' | 'no-hotel' | 'no-pickup';
+
+interface RSVPStats {
+  totalFamilies: number;
+  totalGuests: number;
+  confirmedGuests: number;
+  declinedGuests: number;
+  pendingGuests: number;
+  maybeGuests: number;
+  outstationGuests: number;
+  needsHotel: number;
+  needsPickup: number;
+  rsvpResponseRate: number;
+}
 
 interface Props {
   families: FamilyCardData[];
@@ -20,11 +37,15 @@ interface Props {
     pickupAssignments: PickupAssignment[];
     guestsNeedingHotel: LogisticsGuest[];
     guestsNeedingPickup: LogisticsGuest[];
+    guestTravelDetails?: GuestTravelDetails[];
   };
   familyMembers: Record<string, FamilyMember[]>;
   rsvpHistory: Record<string, RSVPHistoryEntry[]>;
   costImpact: Record<string, { catering: number; rooms: number; transport: number; total: number }>;
+  rsvpStats?: RSVPStats;
   eventId?: string;
+  eventName?: string;
+  eventDate?: string;
 }
 
 export function GuestsClient({
@@ -34,20 +55,29 @@ export function GuestsClient({
   familyMembers,
   rsvpHistory,
   costImpact,
+  rsvpStats,
   eventId,
+  eventName,
+  eventDate,
 }: Props) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>('families');
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showCSVImport, setShowCSVImport] = useState(false);
+  const [showAddFamily, setShowAddFamily] = useState(false);
+  const [showBulkRSVP, setShowBulkRSVP] = useState(false);
 
   const selectedFamily = families.find((f) => f.id === selectedFamilyId);
   const selectedMembers = selectedFamilyId ? (familyMembers[selectedFamilyId] || []) : [];
   const selectedRSVPHistory = selectedFamilyId ? (rsvpHistory[selectedFamilyId] || []) : [];
   const selectedCostImpact = selectedFamilyId ? (costImpact[selectedFamilyId] || { catering: 0, rooms: 0, transport: 0, total: 0 }) : { catering: 0, rooms: 0, transport: 0, total: 0 };
+
+  // Find selected guest for the drawer
+  const selectedGuest = selectedGuestId ? individuals.find((g) => g.id === selectedGuestId) : null;
 
   // Filter families based on filter mode
   const filteredFamilies = families.filter((family) => {
@@ -85,18 +115,33 @@ export function GuestsClient({
         </div>
         <div className="flex gap-3">
           <button
+            onClick={() => setShowBulkRSVP(true)}
+            className="px-4 py-2 rounded-lg border-2 border-green-600 text-green-600 font-semibold hover:bg-green-50 flex items-center gap-2 transition-all"
+          >
+            <Send className="h-5 w-5" />
+            Send RSVP Reminders
+          </button>
+          <button
             onClick={() => setShowCSVImport(true)}
             className="px-4 py-2 rounded-lg border-2 border-rose-700 text-rose-700 font-semibold hover:bg-rose-50 flex items-center gap-2 transition-all"
           >
             <Upload className="h-5 w-5" />
             Import CSV
           </button>
-          <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-semibold hover:from-rose-800 hover:to-rose-950 flex items-center gap-2 transition-all">
+          <button
+            onClick={() => setShowAddFamily(true)}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-700 to-rose-900 text-white font-semibold hover:from-rose-800 hover:to-rose-950 flex items-center gap-2 transition-all"
+          >
             <Plus className="h-5 w-5" />
             Add Family
           </button>
         </div>
       </div>
+
+      {/* RSVP Statistics */}
+      {rsvpStats && (
+        <RSVPStatsCards stats={rsvpStats} />
+      )}
 
       {/* View Mode Toggle */}
       <div className="flex items-center gap-3 p-2 bg-gray-100 rounded-xl w-fit">
@@ -237,7 +282,10 @@ export function GuestsClient({
               <p className="text-gray-600 mb-6">
                 Start by adding your first family to track RSVPs and logistics
               </p>
-              <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-700 to-rose-900 text-white rounded-lg hover:from-rose-800 hover:to-rose-950 font-semibold transition-all">
+              <button
+                onClick={() => setShowAddFamily(true)}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-700 to-rose-900 text-white rounded-lg hover:from-rose-800 hover:to-rose-950 font-semibold transition-all"
+              >
                 <Plus className="h-5 w-5" />
                 Add First Family
               </button>
@@ -260,15 +308,8 @@ export function GuestsClient({
         <IndividualsView
           guests={filteredIndividuals}
           onGuestClick={(guestId) => {
-            // Find the family for this guest and open the drawer
-            const guest = individuals.find((g) => g.id === guestId);
-            if (guest) {
-              const family = families.find((f) => f.family_name === guest.family_name);
-              if (family) {
-                setViewMode('families');
-                setSelectedFamilyId(family.id);
-              }
-            }
+            // Open the guest detail drawer for RSVP updates
+            setSelectedGuestId(guestId);
           }}
         />
       )}
@@ -279,6 +320,7 @@ export function GuestsClient({
           pickupAssignments={logistics.pickupAssignments}
           guestsNeedingHotel={logistics.guestsNeedingHotel}
           guestsNeedingPickup={logistics.guestsNeedingPickup}
+          guestTravelDetails={logistics.guestTravelDetails}
           onFamilyClick={(familyId) => {
             setViewMode('families');
             setSelectedFamilyId(familyId);
@@ -287,13 +329,38 @@ export function GuestsClient({
       )}
 
       {/* Family Detail Drawer */}
-      {selectedFamily && (
+      {selectedFamily && eventId && (
         <FamilyDetailDrawer
           family={selectedFamily}
           members={selectedMembers}
           rsvpHistory={selectedRSVPHistory}
           costImpact={selectedCostImpact}
+          eventId={eventId}
+          eventName={eventName}
+          eventDate={eventDate}
           onClose={() => setSelectedFamilyId(null)}
+        />
+      )}
+
+      {/* Guest Detail Drawer (for individual guest RSVP) */}
+      {selectedGuest && eventId && (
+        <GuestDetailDrawer
+          guest={{
+            id: selectedGuest.id,
+            name: selectedGuest.name,
+            family_name: selectedGuest.family_name,
+            family_side: selectedGuest.family_side,
+            rsvp_status: selectedGuest.rsvp_status,
+            is_outstation: selectedGuest.is_outstation,
+            hotel_assigned: selectedGuest.hotel_assigned,
+            pickup_assigned: selectedGuest.pickup_assigned,
+            is_vip: selectedGuest.is_vip,
+            is_elderly: selectedGuest.is_elderly,
+            is_child: selectedGuest.is_child,
+            phone: selectedGuest.phone,
+          }}
+          eventId={eventId}
+          onClose={() => setSelectedGuestId(null)}
         />
       )}
 
@@ -306,6 +373,33 @@ export function GuestsClient({
             setShowCSVImport(false);
             router.refresh();
           }}
+        />
+      )}
+
+      {/* Add Family Modal */}
+      {showAddFamily && eventId && (
+        <AddFamilyModal
+          eventId={eventId}
+          onClose={() => setShowAddFamily(false)}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* Bulk RSVP Actions Modal */}
+      {showBulkRSVP && eventId && (
+        <BulkRSVPActions
+          families={families.map(f => ({
+            id: f.id,
+            family_name: f.family_name,
+            primary_contact_phone: f.primary_contact_phone,
+            members_pending: f.members_pending,
+          }))}
+          eventId={eventId}
+          eventName={eventName || 'Wedding Celebration'}
+          eventDate={eventDate}
+          onClose={() => setShowBulkRSVP(false)}
         />
       )}
     </div>

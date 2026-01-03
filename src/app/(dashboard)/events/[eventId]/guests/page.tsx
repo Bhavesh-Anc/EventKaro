@@ -170,9 +170,9 @@ export default async function GuestsPage({
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                          guest.rsvp_status === 'attending'
+                          guest.rsvp_status === 'accepted'
                             ? 'bg-green-100 text-green-800'
-                            : guest.rsvp_status === 'not_attending'
+                            : guest.rsvp_status === 'declined'
                             ? 'bg-red-100 text-red-800'
                             : guest.rsvp_status === 'maybe'
                             ? 'bg-yellow-100 text-yellow-800'

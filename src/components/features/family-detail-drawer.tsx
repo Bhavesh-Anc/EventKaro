@@ -1,14 +1,19 @@
 'use client';
 
-import { X, Users, Hotel, Truck, DollarSign, MessageCircle, Edit, Star } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { X, Users, Hotel, Truck, DollarSign, MessageCircle, Edit, Star, Plus, UserPlus, Send, FileText } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { FamilyCardData } from './family-card';
+import { addFamilyMember, sendRSVPFormToFamily } from '@/actions/guests';
+import { useRouter } from 'next/navigation';
+import { AssignHotelModal } from './assign-hotel-modal';
+import { AssignTransportModal } from './assign-transport-modal';
 
 export interface FamilyMember {
   id: string;
   name: string;
   age?: number;
-  rsvp_status: 'pending' | 'confirmed' | 'declined' | 'maybe';
+  rsvp_status: 'pending' | 'accepted' | 'declined' | 'maybe' | 'no_response';
   dietary_restrictions?: string;
   is_elderly: boolean;
   is_child: boolean;
@@ -33,6 +38,9 @@ interface Props {
     transport: number;
     total: number;
   };
+  eventId: string;
+  eventName?: string;
+  eventDate?: string;
   onClose: () => void;
 }
 
@@ -47,9 +55,67 @@ export function FamilyDetailDrawer({
   members,
   rsvpHistory,
   costImpact,
+  eventId,
+  eventName = 'Wedding Celebration',
+  eventDate,
   onClose,
 }: Props) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
+  const [rsvpFormError, setRsvpFormError] = useState<string | null>(null);
+  const [rsvpFormSending, setRsvpFormSending] = useState(false);
+  const [showHotelModal, setShowHotelModal] = useState(false);
+  const [showTransportModal, setShowTransportModal] = useState(false);
   const lateConfirmations = rsvpHistory.filter((h) => h.is_late && h.status === 'confirmed');
+
+  const handleSendRSVPForm = async () => {
+    setRsvpFormError(null);
+    setRsvpFormSending(true);
+
+    try {
+      const baseUrl = window.location.origin;
+      const formattedDate = eventDate || 'TBD';
+
+      const result = await sendRSVPFormToFamily(
+        family.id,
+        eventId,
+        eventName,
+        formattedDate,
+        baseUrl
+      );
+
+      if (result.error) {
+        setRsvpFormError(result.error);
+      } else if (result.whatsappUrl) {
+        window.open(result.whatsappUrl, '_blank');
+      }
+    } catch (error) {
+      setRsvpFormError('Failed to generate RSVP links');
+    } finally {
+      setRsvpFormSending(false);
+    }
+  };
+
+  const handleAddMember = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setAddMemberError(null);
+
+    const formData = new FormData(e.currentTarget);
+    formData.set('family_id', family.id);
+    formData.set('event_id', eventId);
+
+    startTransition(async () => {
+      const result = await addFamilyMember(formData);
+      if (result.error) {
+        setAddMemberError(result.error);
+      } else {
+        setShowAddMember(false);
+        router.refresh();
+      }
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/30" onClick={onClose}>
@@ -107,7 +173,20 @@ export function FamilyDetailDrawer({
                   )}
                 </div>
               )}
+              {rsvpFormError && (
+                <div className="p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                  {rsvpFormError}
+                </div>
+              )}
               <div className="flex gap-2">
+                <button
+                  onClick={handleSendRSVPForm}
+                  disabled={rsvpFormSending || !family.primary_contact_phone}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FileText className="h-4 w-4" />
+                  {rsvpFormSending ? 'Generating...' : 'Send RSVP Form'}
+                </button>
                 <button
                   onClick={() => {
                     if (family.primary_contact_phone) {
@@ -117,21 +196,86 @@ export function FamilyDetailDrawer({
                       );
                     }
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-all"
+                  disabled={!family.primary_contact_phone}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Send RSVP Reminder"
                 >
                   <MessageCircle className="h-4 w-4" />
-                  Send RSVP Reminder
                 </button>
               </div>
+              <p className="text-xs text-gray-500 mt-1">
+                RSVP form includes travel and accommodation details
+              </p>
             </div>
           </div>
 
           {/* SECTION B - Members List */}
           <div>
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">
-              Family Members ({members.length})
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                Family Members ({members.length})
+              </h3>
+              <button
+                onClick={() => setShowAddMember(!showAddMember)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all"
+              >
+                <UserPlus className="h-4 w-4" />
+                Add Member
+              </button>
+            </div>
+
+            {/* Add Member Form */}
+            {showAddMember && (
+              <form onSubmit={handleAddMember} className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {addMemberError && (
+                  <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                    {addMemberError}
+                  </div>
+                )}
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    name="name"
+                    required
+                    placeholder="Member name *"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-4 mb-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="is_elderly" value="true" className="rounded" />
+                    Elderly
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="is_child" value="true" className="rounded" />
+                    Child
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMember(false)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPending}
+                    className="flex-1 px-3 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700 disabled:opacity-50"
+                  >
+                    {isPending ? 'Adding...' : 'Add'}
+                  </button>
+                </div>
+              </form>
+            )}
+
             <div className="space-y-2">
+              {members.length === 0 && !showAddMember && (
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  No members yet. Click "Add Member" to add family members.
+                </div>
+              )}
               {members.map((member) => (
                 <div
                   key={member.id}
@@ -171,7 +315,7 @@ export function FamilyDetailDrawer({
                     <div>
                       <span
                         className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${
-                          member.rsvp_status === 'confirmed'
+                          member.rsvp_status === 'accepted'
                             ? 'bg-green-100 text-green-800'
                             : member.rsvp_status === 'declined'
                             ? 'bg-red-100 text-red-800'
@@ -250,11 +394,17 @@ export function FamilyDetailDrawer({
                       </div>
                     </div>
                     {family.rooms_required > family.rooms_allocated ? (
-                      <button className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => setShowHotelModal(true)}
+                        className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all"
+                      >
                         Assign Hotel
                       </button>
                     ) : (
-                      <button className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => setShowHotelModal(true)}
+                        className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-semibold transition-all"
+                      >
                         <Edit className="h-4 w-4" />
                       </button>
                     )}
@@ -276,11 +426,17 @@ export function FamilyDetailDrawer({
                       </div>
                     </div>
                     {!family.pickup_assigned ? (
-                      <button className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => setShowTransportModal(true)}
+                        className="px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all"
+                      >
                         Assign Pickup
                       </button>
                     ) : (
-                      <button className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-semibold transition-all">
+                      <button
+                        onClick={() => setShowTransportModal(true)}
+                        className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-semibold transition-all"
+                      >
                         <Edit className="h-4 w-4" />
                       </button>
                     )}
@@ -329,12 +485,30 @@ export function FamilyDetailDrawer({
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-amber-300 text-xs text-amber-800">
-                💡 This estimate is private and visible only to organizers
+                This estimate is private and visible only to organizers
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Hotel Assignment Modal */}
+      <AssignHotelModal
+        isOpen={showHotelModal}
+        onClose={() => setShowHotelModal(false)}
+        familyId={family.id}
+        familyName={family.family_name}
+        roomsRequired={family.rooms_required}
+        currentRoomsAllocated={family.rooms_allocated}
+      />
+
+      {/* Transport Assignment Modal */}
+      <AssignTransportModal
+        isOpen={showTransportModal}
+        onClose={() => setShowTransportModal(false)}
+        familyId={family.id}
+        familyName={family.family_name}
+      />
     </div>
   );
 }

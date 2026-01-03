@@ -4,6 +4,43 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
+/**
+ * Parse a CSV line properly handling quoted fields
+ * Handles: commas inside quotes, escaped quotes, newlines in quotes
+ */
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote
+        current += '"';
+        i++; // Skip next quote
+      } else {
+        // Toggle quote mode
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // Field separator
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  // Add the last field
+  result.push(current.trim());
+
+  return result;
+}
+
 export async function addGuest(formData: FormData) {
   const supabase = await createClient();
 
@@ -14,6 +51,15 @@ export async function addGuest(formData: FormData) {
   const phone = formData.get('phone') as string || null;
   const groupId = formData.get('guest_group_id') as string || null;
   const plusOneAllowed = formData.get('plus_one_allowed') === 'on';
+
+  // New enhanced fields
+  const relationship = formData.get('relationship') as string || null;
+  const relationshipDetail = formData.get('relationship_detail') as string || null;
+  const ageGroup = formData.get('age_group') as string || null;
+  const priority = formData.get('priority') as string || 'standard';
+  const whatsappNumber = formData.get('whatsapp_number') as string || null;
+  const preferredContact = formData.get('preferred_contact') as string || 'email';
+  const notes = formData.get('notes') as string || null;
 
   const { error } = await supabase
     .from('guests')
@@ -26,6 +72,14 @@ export async function addGuest(formData: FormData) {
       guest_group_id: groupId,
       plus_one_allowed: plusOneAllowed,
       source: 'manual',
+      // New fields
+      relationship,
+      relationship_detail: relationshipDetail,
+      age_group: ageGroup,
+      priority,
+      whatsapp_number: whatsappNumber,
+      preferred_contact: preferredContact,
+      notes,
     });
 
   if (error) {
@@ -153,15 +207,15 @@ export async function getGuestStats(eventId: string) {
 
   const stats = {
     total: guests.length,
-    attending: guests.filter((g) => g.rsvp_status === 'attending').length,
-    notAttending: guests.filter((g) => g.rsvp_status === 'not_attending').length,
+    attending: guests.filter((g) => g.rsvp_status === 'accepted').length,
+    notAttending: guests.filter((g) => g.rsvp_status === 'declined').length,
     pending: guests.filter((g) => g.rsvp_status === 'pending').length,
     maybe: guests.filter((g) => g.rsvp_status === 'maybe').length,
   };
 
   // Count plus ones
   const plusOnesAttending = guests.filter(
-    (g) => g.plus_one_rsvp === 'attending'
+    (g) => g.plus_one_rsvp === 'accepted'
   ).length;
 
   return {
@@ -216,6 +270,14 @@ export async function updateGuest(formData: FormData) {
   const groupId = formData.get('guest_group_id') as string || null;
   const notes = formData.get('notes') as string || null;
 
+  // Enhanced fields
+  const relationship = formData.get('relationship') as string || null;
+  const relationshipDetail = formData.get('relationship_detail') as string || null;
+  const ageGroup = formData.get('age_group') as string || null;
+  const priority = formData.get('priority') as string || null;
+  const whatsappNumber = formData.get('whatsapp_number') as string || null;
+  const preferredContact = formData.get('preferred_contact') as string || null;
+
   const { error } = await supabase
     .from('guests')
     .update({
@@ -225,6 +287,13 @@ export async function updateGuest(formData: FormData) {
       phone,
       guest_group_id: groupId,
       notes,
+      // Enhanced fields
+      relationship,
+      relationship_detail: relationshipDetail,
+      age_group: ageGroup,
+      priority,
+      whatsapp_number: whatsappNumber,
+      preferred_contact: preferredContact,
     })
     .eq('id', guestId);
 
@@ -334,7 +403,7 @@ export async function importGuestsFromCSV(formData: FormData) {
       return { error: 'CSV file is empty or invalid', success: false };
     }
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase());
     const requiredHeaders = ['first_name'];
 
     for (const required of requiredHeaders) {
@@ -361,7 +430,7 @@ export async function importGuestsFromCSV(formData: FormData) {
 
     // Process each row
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map((v) => v.trim());
+      const values = parseCSVLine(lines[i]);
       const row: any = {};
 
       headers.forEach((header, index) => {
@@ -467,7 +536,6 @@ export async function createFamily(formData: FormData) {
   const event_id = formData.get('event_id') as string;
   const primary_contact_name = formData.get('primary_contact_name') as string;
   const primary_contact_phone = formData.get('primary_contact_phone') as string;
-  const is_vip = formData.get('is_vip') === 'true';
 
   if (!family_name || !family_side || !event_id) {
     return { error: 'Family name, side, and event are required' };
@@ -479,16 +547,15 @@ export async function createFamily(formData: FormData) {
       event_id,
       family_name,
       family_side,
-      primary_contact_name,
-      primary_contact_phone,
-      is_vip,
+      primary_contact_name: primary_contact_name || null,
+      primary_contact_phone: primary_contact_phone || null,
     })
     .select()
     .single();
 
   if (error) {
     console.error('Error creating family:', error);
-    return { error: 'Failed to create family' };
+    return { error: `Failed to create family: ${error.message}` };
   }
 
   revalidatePath('/guests');
@@ -504,27 +571,41 @@ export async function addFamilyMember(formData: FormData) {
   const family_id = formData.get('family_id') as string;
   const event_id = formData.get('event_id') as string;
   const name = formData.get('name') as string;
-  const age = formData.get('age') ? parseInt(formData.get('age') as string) : undefined;
-  const dietary_restrictions = formData.get('dietary_restrictions') as string;
   const is_elderly = formData.get('is_elderly') === 'true';
   const is_child = formData.get('is_child') === 'true';
-  const is_vip = formData.get('is_vip') === 'true';
 
   if (!family_id || !event_id || !name) {
     return { error: 'Family, event, and name are required' };
   }
 
+  // Split name into first and last name
+  const nameParts = name.trim().split(' ');
+  const first_name = nameParts[0];
+  const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null;
+
+  // Get the family details to set family_group_name (for trigger compatibility)
+  const { data: family } = await supabase
+    .from('wedding_family_groups')
+    .select('family_name, family_side')
+    .eq('id', family_id)
+    .single();
+
+  if (!family) {
+    return { error: 'Family not found' };
+  }
+
+  // Insert guest - use family_group_name to link to wedding_family_groups
+  // Don't use guest_group_id as it references the separate guest_groups table
   const { data, error } = await supabase
     .from('guests')
     .insert({
-      guest_group_id: family_id,
       event_id,
-      name,
-      age,
-      dietary_restrictions,
+      first_name,
+      last_name,
+      family_group_name: family.family_name,
+      family_side: family.family_side,
       is_elderly,
       is_child,
-      is_vip,
       rsvp_status: 'pending',
     })
     .select()
@@ -532,11 +613,12 @@ export async function addFamilyMember(formData: FormData) {
 
   if (error) {
     console.error('Error adding family member:', error);
-    return { error: 'Failed to add family member' };
+    return { error: `Failed to add family member: ${error.message}` };
   }
 
-  // Update family member counts
-  await updateFamilyMemberCounts(family_id);
+  // The database trigger update_family_group_counts() handles updating counts
+  // But we'll also manually update to ensure consistency
+  await updateFamilyMemberCounts(family.family_name, event_id);
 
   revalidatePath('/guests');
   return { success: true, member: data };
@@ -547,14 +629,14 @@ export async function addFamilyMember(formData: FormData) {
  */
 export async function updateFamilyMemberRSVP(
   guestId: string,
-  status: 'pending' | 'confirmed' | 'declined' | 'maybe',
+  status: 'pending' | 'accepted' | 'declined' | 'maybe',
   rsvpCutoffDate?: string
 ) {
   const supabase = await createClient();
 
   // Check if this is a late confirmation
   const isLate = rsvpCutoffDate
-    ? new Date() > new Date(rsvpCutoffDate) && status === 'confirmed'
+    ? new Date() > new Date(rsvpCutoffDate) && status === 'accepted'
     : false;
 
   const { data, error } = await supabase
@@ -572,9 +654,9 @@ export async function updateFamilyMemberRSVP(
     return { error: 'Failed to update RSVP' };
   }
 
-  // Update family member counts
-  if (data.guest_group_id) {
-    await updateFamilyMemberCounts(data.guest_group_id);
+  // Update family member counts (for wedding families linked via family_group_name)
+  if (data.family_group_name && data.event_id) {
+    await updateFamilyMemberCounts(data.family_group_name, data.event_id);
   }
 
   revalidatePath('/guests');
@@ -586,7 +668,7 @@ export async function updateFamilyMemberRSVP(
  */
 export async function bulkUpdateFamilyRSVP(
   guestIds: string[],
-  status: 'pending' | 'confirmed' | 'declined' | 'maybe'
+  status: 'pending' | 'accepted' | 'declined' | 'maybe'
 ) {
   const supabase = await createClient();
 
@@ -691,17 +773,19 @@ export async function deleteFamily(familyId: string) {
 /**
  * Update family member counts (helper function)
  */
-async function updateFamilyMemberCounts(familyId: string) {
+async function updateFamilyMemberCounts(familyName: string, eventId: string) {
   const supabase = await createClient();
 
+  // Query guests by family_group_name (links to wedding_family_groups.family_name)
   const { data: members } = await supabase
     .from('guests')
     .select('rsvp_status')
-    .eq('guest_group_id', familyId);
+    .eq('family_group_name', familyName)
+    .eq('event_id', eventId);
 
   if (!members) return;
 
-  const confirmed = members.filter((m) => m.rsvp_status === 'confirmed').length;
+  const confirmed = members.filter((m) => m.rsvp_status === 'accepted').length;
   const pending = members.filter((m) => m.rsvp_status === 'pending').length;
   const declined = members.filter((m) => m.rsvp_status === 'declined').length;
 
@@ -713,7 +797,8 @@ async function updateFamilyMemberCounts(familyId: string) {
       members_pending: pending,
       members_declined: declined,
     })
-    .eq('id', familyId);
+    .eq('family_name', familyName)
+    .eq('event_id', eventId);
 }
 
 /**
@@ -751,6 +836,437 @@ Please let us know at your earliest convenience. Looking forward to celebrating 
 }
 
 /**
+ * Generate RSVP form link for a family member
+ * Creates/updates invitation token and returns the RSVP URL
+ */
+export async function generateRSVPFormLink(guestId: string, eventId: string) {
+  const supabase = await createClient();
+
+  // Generate a secure random token
+  const token = crypto.randomUUID();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiry
+
+  // Update guest with invitation token
+  const { error } = await supabase
+    .from('guests')
+    .update({
+      invitation_token: token,
+      invitation_expires_at: expiresAt.toISOString(),
+    })
+    .eq('id', guestId);
+
+  if (error) {
+    console.error('Error generating RSVP link:', error);
+    return { error: 'Failed to generate RSVP link' };
+  }
+
+  // Build the RSVP URL (relative, will be combined with origin on client)
+  const rsvpUrl = `/rsvp/${token}`;
+
+  return { success: true, rsvpUrl, token };
+}
+
+/**
+ * Generate RSVP form links for all family members and return WhatsApp share URL
+ */
+export async function sendRSVPFormToFamily(
+  familyId: string,
+  eventId: string,
+  eventName: string,
+  eventDate: string,
+  baseUrl: string
+) {
+  const supabase = await createClient();
+
+  // Get family details
+  const { data: family } = await supabase
+    .from('wedding_family_groups')
+    .select('family_name, primary_contact_phone')
+    .eq('id', familyId)
+    .single();
+
+  if (!family) {
+    return { error: 'Family not found' };
+  }
+
+  if (!family.primary_contact_phone) {
+    return { error: 'No phone number found for this family' };
+  }
+
+  // Get all family members
+  const { data: members } = await supabase
+    .from('guests')
+    .select('id, first_name, last_name')
+    .eq('family_group_name', family.family_name)
+    .eq('event_id', eventId);
+
+  if (!members || members.length === 0) {
+    return { error: 'No family members found' };
+  }
+
+  // Generate tokens for all members
+  const memberLinks: { name: string; url: string }[] = [];
+
+  for (const member of members) {
+    const result = await generateRSVPFormLink(member.id, eventId);
+    if (result.success && result.rsvpUrl) {
+      const name = `${member.first_name || ''} ${member.last_name || ''}`.trim();
+      memberLinks.push({
+        name: name || 'Guest',
+        url: `${baseUrl}${result.rsvpUrl}`,
+      });
+    }
+  }
+
+  if (memberLinks.length === 0) {
+    return { error: 'Failed to generate RSVP links' };
+  }
+
+  // Build WhatsApp message with all member links
+  let message = `Hi ${family.family_name} family! 🎉
+
+You're invited to ${eventName} on ${eventDate}!
+
+Please fill out the RSVP form for each family member:
+`;
+
+  memberLinks.forEach((link, index) => {
+    message += `\n${index + 1}. ${link.name}: ${link.url}`;
+  });
+
+  message += `\n\nThe form includes travel and accommodation details. Looking forward to celebrating with you!`;
+
+  const whatsappUrl = `https://wa.me/${family.primary_contact_phone.replace(
+    /\D/g,
+    ''
+  )}?text=${encodeURIComponent(message)}`;
+
+  return { success: true, whatsappUrl, memberLinks };
+}
+
+// ============================================================================
+// PER-EVENT RSVP TRACKING
+// ============================================================================
+
+/**
+ * Get all wedding events for per-event RSVP tracking
+ */
+export async function getWeddingEventsForRSVP(parentEventId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('wedding_events')
+    .select('id, event_name, custom_event_name, start_datetime, venue_name')
+    .eq('parent_event_id', parentEventId)
+    .order('sequence_order', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching wedding events:', error);
+    return [];
+  }
+  return data;
+}
+
+/**
+ * Get per-event RSVP status for a guest
+ */
+export async function getGuestEventRSVPs(guestId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('guest_event_rsvp')
+    .select(`
+      *,
+      wedding_event:wedding_events(id, event_name, custom_event_name, start_datetime)
+    `)
+    .eq('guest_id', guestId);
+
+  if (error) {
+    console.error('Error fetching guest event RSVPs:', error);
+    return [];
+  }
+  return data;
+}
+
+/**
+ * Update RSVP status for a specific guest and wedding event
+ */
+export async function updateGuestEventRSVP(
+  guestId: string,
+  weddingEventId: string,
+  status: 'pending' | 'accepted' | 'declined' | 'tentative',
+  additionalData?: {
+    dietaryPreference?: string;
+    plusOneAttending?: boolean;
+    transportationNeeded?: boolean;
+    arrivalTime?: string;
+    notes?: string;
+  }
+) {
+  const supabase = await createClient();
+
+  const updateData: any = {
+    rsvp_status: status,
+    rsvp_date: new Date().toISOString(),
+  };
+
+  if (additionalData) {
+    if (additionalData.dietaryPreference !== undefined) {
+      updateData.dietary_preference = additionalData.dietaryPreference;
+    }
+    if (additionalData.plusOneAttending !== undefined) {
+      updateData.plus_one_attending = additionalData.plusOneAttending;
+    }
+    if (additionalData.transportationNeeded !== undefined) {
+      updateData.transportation_needed = additionalData.transportationNeeded;
+    }
+    if (additionalData.arrivalTime !== undefined) {
+      updateData.arrival_time = additionalData.arrivalTime;
+    }
+    if (additionalData.notes !== undefined) {
+      updateData.notes = additionalData.notes;
+    }
+  }
+
+  // Upsert - insert if doesn't exist, update if does
+  const { error } = await supabase
+    .from('guest_event_rsvp')
+    .upsert({
+      guest_id: guestId,
+      wedding_event_id: weddingEventId,
+      ...updateData,
+    }, {
+      onConflict: 'guest_id,wedding_event_id',
+    });
+
+  if (error) {
+    console.error('Error updating guest event RSVP:', error);
+    return { error: error.message };
+  }
+
+  revalidatePath('/guests');
+  revalidatePath('/events');
+  return { success: true };
+}
+
+/**
+ * Bulk update per-event RSVPs for a guest (e.g., attending all events)
+ */
+export async function bulkUpdateGuestEventRSVPs(
+  guestId: string,
+  weddingEventIds: string[],
+  status: 'pending' | 'accepted' | 'declined' | 'tentative'
+) {
+  const supabase = await createClient();
+
+  const updates = weddingEventIds.map(eventId => ({
+    guest_id: guestId,
+    wedding_event_id: eventId,
+    rsvp_status: status,
+    rsvp_date: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from('guest_event_rsvp')
+    .upsert(updates, {
+      onConflict: 'guest_id,wedding_event_id',
+    });
+
+  if (error) {
+    console.error('Error bulk updating guest event RSVPs:', error);
+    return { error: error.message };
+  }
+
+  revalidatePath('/guests');
+  return { success: true };
+}
+
+/**
+ * Get event-wise RSVP stats for an event
+ */
+export async function getEventWiseRSVPStats(parentEventId: string) {
+  const supabase = await createClient();
+
+  // Get all wedding events
+  const { data: weddingEvents } = await supabase
+    .from('wedding_events')
+    .select('id, event_name, custom_event_name, start_datetime')
+    .eq('parent_event_id', parentEventId)
+    .order('sequence_order', { ascending: true });
+
+  if (!weddingEvents) return [];
+
+  // Get RSVP counts for each event
+  const statsPromises = weddingEvents.map(async (event) => {
+    const { data: rsvps } = await supabase
+      .from('guest_event_rsvp')
+      .select('rsvp_status')
+      .eq('wedding_event_id', event.id);
+
+    const counts = {
+      total: rsvps?.length || 0,
+      accepted: rsvps?.filter(r => r.rsvp_status === 'accepted').length || 0,
+      declined: rsvps?.filter(r => r.rsvp_status === 'declined').length || 0,
+      pending: rsvps?.filter(r => r.rsvp_status === 'pending').length || 0,
+      tentative: rsvps?.filter(r => r.rsvp_status === 'tentative').length || 0,
+    };
+
+    return {
+      ...event,
+      eventName: event.custom_event_name || event.event_name,
+      ...counts,
+    };
+  });
+
+  return Promise.all(statsPromises);
+}
+
+/**
+ * Initialize per-event RSVPs for a guest across all wedding events
+ */
+export async function initializeGuestEventRSVPs(guestId: string, parentEventId: string) {
+  const supabase = await createClient();
+
+  // Get all wedding events
+  const { data: weddingEvents } = await supabase
+    .from('wedding_events')
+    .select('id')
+    .eq('parent_event_id', parentEventId);
+
+  if (!weddingEvents || weddingEvents.length === 0) return { success: true };
+
+  // Create pending RSVP entries for all events
+  const rsvpEntries = weddingEvents.map(event => ({
+    guest_id: guestId,
+    wedding_event_id: event.id,
+    rsvp_status: 'pending',
+  }));
+
+  const { error } = await supabase
+    .from('guest_event_rsvp')
+    .upsert(rsvpEntries, {
+      onConflict: 'guest_id,wedding_event_id',
+      ignoreDuplicates: true,
+    });
+
+  if (error) {
+    console.error('Error initializing guest event RSVPs:', error);
+    return { error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Get guest summary with per-event attendance
+ */
+export async function getGuestWithEventAttendance(guestId: string) {
+  const supabase = await createClient();
+
+  const { data: guest, error } = await supabase
+    .from('guests')
+    .select(`
+      *,
+      guest_event_rsvps:guest_event_rsvp(
+        id,
+        rsvp_status,
+        rsvp_date,
+        plus_one_attending,
+        dietary_preference,
+        transportation_needed,
+        wedding_event:wedding_events(
+          id,
+          event_name,
+          custom_event_name,
+          start_datetime,
+          venue_name
+        )
+      )
+    `)
+    .eq('id', guestId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching guest with event attendance:', error);
+    return null;
+  }
+
+  return guest;
+}
+
+/**
+ * Get age group statistics for catering planning
+ */
+export async function getAgeGroupStats(eventId: string) {
+  const supabase = await createClient();
+
+  const { data: guests } = await supabase
+    .from('guests')
+    .select('age_group, rsvp_status')
+    .eq('event_id', eventId);
+
+  if (!guests) return {
+    child: { total: 0, attending: 0 },
+    teen: { total: 0, attending: 0 },
+    adult: { total: 0, attending: 0 },
+    senior: { total: 0, attending: 0 },
+    unknown: { total: 0, attending: 0 },
+  };
+
+  const stats: Record<string, { total: number; attending: number }> = {
+    child: { total: 0, attending: 0 },
+    teen: { total: 0, attending: 0 },
+    adult: { total: 0, attending: 0 },
+    senior: { total: 0, attending: 0 },
+    unknown: { total: 0, attending: 0 },
+  };
+
+  guests.forEach(guest => {
+    const group = guest.age_group || 'unknown';
+    if (stats[group]) {
+      stats[group].total++;
+      if (guest.rsvp_status === 'accepted') {
+        stats[group].attending++;
+      }
+    }
+  });
+
+  return stats;
+}
+
+/**
+ * Get relationship breakdown for guest list
+ */
+export async function getRelationshipStats(eventId: string) {
+  const supabase = await createClient();
+
+  const { data: guests } = await supabase
+    .from('guests')
+    .select('relationship, priority, rsvp_status')
+    .eq('event_id', eventId);
+
+  if (!guests) return {};
+
+  const stats: Record<string, { total: number; attending: number; byPriority: Record<string, number> }> = {};
+
+  guests.forEach(guest => {
+    const rel = guest.relationship || 'other';
+    if (!stats[rel]) {
+      stats[rel] = { total: 0, attending: 0, byPriority: {} };
+    }
+    stats[rel].total++;
+    if (guest.rsvp_status === 'accepted') {
+      stats[rel].attending++;
+    }
+    const priority = guest.priority || 'standard';
+    stats[rel].byPriority[priority] = (stats[rel].byPriority[priority] || 0) + 1;
+  });
+
+  return stats;
+}
+
+/**
  * Import families and members from CSV
  *
  * CSV Format:
@@ -784,7 +1300,7 @@ export async function importFamiliesFromCSV(formData: FormData) {
       return { error: 'CSV file is empty or invalid', success: false };
     }
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase());
     const requiredHeaders = ['family_name', 'family_side', 'member_name'];
 
     for (const required of requiredHeaders) {
@@ -803,7 +1319,7 @@ export async function importFamiliesFromCSV(formData: FormData) {
 
     // Process each row
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map((v) => v.trim());
+      const values = parseCSVLine(lines[i]);
       const row: any = {};
 
       headers.forEach((header, index) => {
@@ -835,7 +1351,6 @@ export async function importFamiliesFromCSV(formData: FormData) {
             family_side: familySide,
             primary_contact_name: row.primary_contact_name || null,
             primary_contact_phone: row.primary_contact_phone || null,
-            is_vip: row.is_vip === 'true' || row.is_vip === '1',
             is_outstation: row.is_outstation === 'true' || row.is_outstation === '1',
             rooms_required: parseInt(row.rooms_required) || 0,
             pickup_required: row.pickup_required === 'true' || row.pickup_required === '1',
@@ -859,18 +1374,21 @@ export async function importFamiliesFromCSV(formData: FormData) {
         continue;
       }
 
-      // Add family member
+      // Add family member - parse name into first_name and last_name
+      const nameParts = (row.member_name || '').trim().split(' ');
+      const firstName = nameParts[0] || 'Unknown';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
       const { error: memberError } = await supabase
         .from('guests')
         .insert({
           event_id: eventId,
-          guest_group_id: familyId,
-          name: row.member_name,
-          age: parseInt(row.member_age) || null,
+          family_group_name: row.family_name, // Links to wedding_family_groups via trigger
+          family_side: row.family_side || null,
+          first_name: firstName,
+          last_name: lastName,
           is_elderly: row.is_elderly === 'true' || row.is_elderly === '1',
           is_child: row.is_child === 'true' || row.is_child === '1',
-          is_vip: row.is_vip === 'true' || row.is_vip === '1',
-          dietary_restrictions: row.dietary_restrictions || null,
           rsvp_status: 'pending',
         });
 
@@ -882,9 +1400,9 @@ export async function importFamiliesFromCSV(formData: FormData) {
       }
     }
 
-    // Update member counts for all families
-    for (const familyId of familyMap.values()) {
-      await updateFamilyMemberCounts(familyId);
+    // Update member counts for all families (using family name and event ID)
+    for (const [familyName] of familyMap.entries()) {
+      await updateFamilyMemberCounts(familyName, eventId);
     }
 
     revalidatePath('/guests');

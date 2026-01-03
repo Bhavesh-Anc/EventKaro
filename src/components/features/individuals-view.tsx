@@ -7,14 +7,13 @@ export interface IndividualGuest {
   name: string;
   family_name: string;
   family_side: 'bride' | 'groom';
-  rsvp_status: 'pending' | 'confirmed' | 'declined' | 'maybe';
+  rsvp_status: 'pending' | 'accepted' | 'declined' | 'maybe' | 'no_response';
   is_outstation: boolean;
   hotel_assigned: boolean;
   pickup_assigned: boolean;
   is_vip: boolean;
   is_elderly: boolean;
   is_child: boolean;
-  dietary_restrictions?: string;
   phone?: string;
 }
 
@@ -110,7 +109,7 @@ export function IndividualsView({ guests, onGuestClick }: Props) {
                 {/* RSVP Status */}
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-1.5">
-                    {guest.rsvp_status === 'confirmed' && (
+                    {guest.rsvp_status === 'accepted' && (
                       <>
                         <CheckCircle2 className="h-4 w-4 text-green-600" />
                         <span className="text-sm font-semibold text-green-700">Confirmed</span>
@@ -188,11 +187,6 @@ export function IndividualsView({ guests, onGuestClick }: Props) {
                     {guest.is_child && (
                       <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-semibold">
                         Child
-                      </span>
-                    )}
-                    {guest.dietary_restrictions && (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
-                        {guest.dietary_restrictions}
                       </span>
                     )}
                   </div>

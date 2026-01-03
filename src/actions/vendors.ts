@@ -1187,3 +1187,217 @@ export async function getEventVendorStats(eventId: string) {
     totalCost,
   };
 }
+
+// ============================================================================
+// VENDOR PAYMENT TRACKING
+// ============================================================================
+
+/**
+ * Record a payment for a vendor booking
+ */
+export async function recordVendorPayment(paymentData: {
+  bookingId: string;
+  amount: number;
+  paymentType: 'advance' | 'partial' | 'final' | 'full';
+  paymentMethod?: string;
+  transactionId?: string;
+  notes?: string;
+}) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: 'Not authenticated' };
+  }
+
+  // First get the booking
+  const { data: booking } = await supabase
+    .from('vendor_bookings')
+    .select('id, event_id, amount_inr, advance_paid_inr')
+    .eq('id', paymentData.bookingId)
+    .single();
+
+  if (!booking) {
+    return { error: 'Booking not found' };
+  }
+
+  const currentPaid = booking.advance_paid_inr || 0;
+  const newTotal = currentPaid + paymentData.amount;
+  const totalAmount = booking.amount_inr || 0;
+
+  // Determine payment status
+  let paymentStatus: 'unpaid' | 'partial' | 'paid' = 'unpaid';
+  if (newTotal >= totalAmount) {
+    paymentStatus = 'paid';
+  } else if (newTotal > 0) {
+    paymentStatus = 'partial';
+  }
+
+  // Update the booking with new payment info
+  const { error: updateError } = await supabase
+    .from('vendor_bookings')
+    .update({
+      advance_paid_inr: newTotal,
+      payment_status: paymentStatus,
+    })
+    .eq('id', paymentData.bookingId);
+
+  if (updateError) {
+    console.error('Error updating booking payment:', updateError);
+    return { error: updateError.message };
+  }
+
+  // Record the payment in a payments table if it exists
+  // For now, we just update the booking record
+
+  revalidatePath(`/events/${booking.event_id}/vendors`);
+  return {
+    success: true,
+    newTotalPaid: newTotal,
+    paymentStatus,
+    remainingBalance: totalAmount - newTotal,
+  };
+}
+
+/**
+ * Get payment summary for an event's vendors
+ */
+export async function getEventVendorPaymentSummary(eventId: string) {
+  const supabase = await createClient();
+
+  const { data: bookings, error } = await supabase
+    .from('vendor_bookings')
+    .select('amount_inr, advance_paid_inr, payment_status, status')
+    .eq('event_id', eventId)
+    .eq('status', 'confirmed');
+
+  if (error) {
+    console.error('Error fetching payment summary:', error);
+    return {
+      totalCommitted: 0,
+      totalPaid: 0,
+      totalPending: 0,
+      paidVendors: 0,
+      partialVendors: 0,
+      unpaidVendors: 0,
+    };
+  }
+
+  const totalCommitted = bookings?.reduce((sum, b) => sum + (b.amount_inr || 0), 0) || 0;
+  const totalPaid = bookings?.reduce((sum, b) => sum + (b.advance_paid_inr || 0), 0) || 0;
+  const totalPending = totalCommitted - totalPaid;
+
+  const paidVendors = bookings?.filter(b => b.payment_status === 'paid').length || 0;
+  const partialVendors = bookings?.filter(b => b.payment_status === 'partial').length || 0;
+  const unpaidVendors = bookings?.filter(b => !b.payment_status || b.payment_status === 'unpaid').length || 0;
+
+  return {
+    totalCommitted,
+    totalPaid,
+    totalPending,
+    paidVendors,
+    partialVendors,
+    unpaidVendors,
+  };
+}
+
+/**
+ * Get all quoted quote requests for an event (quotes received but not yet accepted/rejected)
+ */
+export async function getEventQuotedRequests(eventId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('quote_requests')
+    .select(`
+      *,
+      vendor:vendors(id, business_name, business_type, city, phone, email)
+    `)
+    .eq('event_id', eventId)
+    .eq('status', 'quoted')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching quoted requests:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Accept a vendor quote and create a booking
+ */
+export async function acceptVendorQuote(quoteId: string, eventId: string) {
+  const supabase = await createClient();
+
+  // Get the quote details
+  const { data: quote, error: quoteError } = await supabase
+    .from('quote_requests')
+    .select('*')
+    .eq('id', quoteId)
+    .single();
+
+  if (quoteError || !quote) {
+    return { error: 'Quote not found' };
+  }
+
+  // Update quote status to accepted
+  const { error: updateError } = await supabase
+    .from('quote_requests')
+    .update({ status: 'accepted' })
+    .eq('id', quoteId);
+
+  if (updateError) {
+    return { error: updateError.message };
+  }
+
+  // Create a vendor booking
+  const { error: bookingError } = await supabase
+    .from('vendor_bookings')
+    .insert({
+      vendor_id: quote.vendor_id,
+      event_id: eventId,
+      quote_request_id: quoteId,
+      amount_inr: quote.quoted_price_inr || 0,
+      status: 'pending',
+      payment_status: 'unpaid',
+    });
+
+  if (bookingError) {
+    console.error('Error creating booking from quote:', bookingError);
+    return { error: bookingError.message };
+  }
+
+  revalidatePath(`/events/${eventId}/vendors`);
+  return { success: true };
+}
+
+/**
+ * Reject a vendor quote
+ */
+export async function rejectVendorQuote(quoteId: string) {
+  const supabase = await createClient();
+
+  // Get the quote to find the event ID for revalidation
+  const { data: quote } = await supabase
+    .from('quote_requests')
+    .select('event_id')
+    .eq('id', quoteId)
+    .single();
+
+  const { error } = await supabase
+    .from('quote_requests')
+    .update({ status: 'rejected' })
+    .eq('id', quoteId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (quote?.event_id) {
+    revalidatePath(`/events/${quote.event_id}/vendors`);
+  }
+
+  return { success: true };
+}
