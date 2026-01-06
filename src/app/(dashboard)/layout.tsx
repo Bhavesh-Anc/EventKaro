@@ -3,7 +3,7 @@ import { getUser } from '@/actions/auth';
 import { getCurrentWedding } from '@/actions/events';
 import { createClient } from '@/lib/supabase/server';
 import { DashboardLayoutClient } from '@/components/features/dashboard-layout-client';
-import { generateNotifications, type Notification } from '@/components/features/notification-center';
+import { generateNotifications, type Notification } from '@/lib/notifications';
 
 export default async function DashboardLayout({
   children,
