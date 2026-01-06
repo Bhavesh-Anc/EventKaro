@@ -8,21 +8,10 @@ import {
   togglePhotoFeatured,
   moderatePhoto,
   likePhoto,
+  type Photo,
 } from '@/actions/photos';
 
-interface Photo {
-  id: string;
-  url: string;
-  thumbnail_url?: string;
-  caption?: string;
-  category: string;
-  uploaded_by: 'host' | 'photographer' | 'guest';
-  uploader_name?: string;
-  is_featured: boolean;
-  is_approved: boolean;
-  likes_count: number;
-  created_at: string;
-}
+type PhotoCategory = Photo['category'];
 
 interface PhotoStats {
   total: number;
@@ -60,7 +49,7 @@ export function PhotosClient({
     await uploadPhoto(eventId, {
       url: data.url,
       caption: data.caption,
-      category: data.category as Photo['category'],
+      category: data.category as PhotoCategory,
       is_featured: data.is_featured,
     });
     router.refresh();
