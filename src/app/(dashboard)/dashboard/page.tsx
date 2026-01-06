@@ -10,7 +10,8 @@ import { DashboardBudgetSnapshot } from '@/components/features/dashboard-budget-
 import { WeddingVendorList } from '@/components/features/wedding-vendor-list';
 import { WeddingTaskList } from '@/components/features/wedding-task-list';
 import { DashboardTrends } from '@/components/features/dashboard-trends';
-import { ActivityFeed, generateRecentActivities } from '@/components/features/activity-feed';
+import { ActivityFeed } from '@/components/features/activity-feed';
+import { generateRecentActivities } from '@/lib/activities';
 import { differenceInDays, subDays } from 'date-fns';
 import type { CategoryBudget } from '@/lib/budget-calculations';
 import {
