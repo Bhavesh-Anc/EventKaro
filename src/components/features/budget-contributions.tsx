@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import {
   addBudgetContribution,
   markContributionReceived,
+  type ContributionSummary,
 } from '@/actions/payments';
 
 interface Contribution {
@@ -39,13 +40,6 @@ interface Contribution {
   notes?: string;
   received_date?: string;
   created_at: string;
-}
-
-interface ContributionSummary {
-  bride: { pledged: number; received: number; pending: number };
-  groom: { pledged: number; received: number; pending: number };
-  other: { pledged: number; received: number; pending: number };
-  total: { pledged: number; received: number; pending: number };
 }
 
 interface BudgetContributionsProps {

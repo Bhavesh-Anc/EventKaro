@@ -311,9 +311,19 @@ export async function getEventContributions(eventId: string) {
 }
 
 /**
+ * Contribution summary type
+ */
+export interface ContributionSummary {
+  bride: { pledged: number; received: number; pending: number };
+  groom: { pledged: number; received: number; pending: number };
+  other: { pledged: number; received: number; pending: number };
+  total: { pledged: number; received: number; pending: number };
+}
+
+/**
  * Get contribution summary by side
  */
-export async function getContributionSummary(eventId: string) {
+export async function getContributionSummary(eventId: string): Promise<ContributionSummary> {
   const supabase = await createClient();
 
   const { data: contributions } = await supabase
@@ -321,24 +331,19 @@ export async function getContributionSummary(eventId: string) {
     .select('contributor_side, amount_inr, status')
     .eq('event_id', eventId);
 
-  if (!contributions) {
-    return {
-      bride: { pledged: 0, received: 0, pending: 0 },
-      groom: { pledged: 0, received: 0, pending: 0 },
-      other: { pledged: 0, received: 0, pending: 0 },
-      total: { pledged: 0, received: 0, pending: 0 },
-    };
-  }
-
-  const summary: Record<string, { pledged: number; received: number; pending: number }> = {
+  const summary: ContributionSummary = {
     bride: { pledged: 0, received: 0, pending: 0 },
     groom: { pledged: 0, received: 0, pending: 0 },
     other: { pledged: 0, received: 0, pending: 0 },
     total: { pledged: 0, received: 0, pending: 0 },
   };
 
+  if (!contributions) {
+    return summary;
+  }
+
   contributions.forEach(c => {
-    const side = c.contributor_side || 'other';
+    const side = (c.contributor_side || 'other') as 'bride' | 'groom' | 'other';
     if (c.status === 'received') {
       summary[side].received += c.amount_inr;
       summary.total.received += c.amount_inr;
