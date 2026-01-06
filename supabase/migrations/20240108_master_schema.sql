@@ -570,7 +570,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
--- STEP 8: ADD MISSING COLUMNS TO EXISTING TABLES (guests, vendors)
+-- STEP 8: ADD MISSING COLUMNS TO EXISTING TABLES
 -- ============================================================================
 
 DO $$
@@ -598,6 +598,44 @@ BEGIN
     BEGIN ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS rating DECIMAL(3,2); EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS review_count INTEGER DEFAULT 0; EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS portfolio_urls TEXT[]; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add route_id to guest_transportation if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'guest_transportation') THEN
+    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS route_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS guest_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS pickup_confirmed BOOLEAN DEFAULT false; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS notes TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to guest_seating if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'guest_seating') THEN
+    BEGIN ALTER TABLE public.guest_seating ADD COLUMN IF NOT EXISTS seating_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guest_seating ADD COLUMN IF NOT EXISTS guest_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guest_seating ADD COLUMN IF NOT EXISTS seat_number INTEGER; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to tasks if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tasks') THEN
+    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS vendor_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS notes TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS dependencies UUID[]; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to runsheet_items if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'runsheet_items') THEN
+    BEGIN ALTER TABLE public.runsheet_items ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to transportation_routes if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'transportation_routes') THEN
+    BEGIN ALTER TABLE public.transportation_routes ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to seating_arrangements if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'seating_arrangements') THEN
+    BEGIN ALTER TABLE public.seating_arrangements ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
   END IF;
 END $$;
 

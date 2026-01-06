@@ -54,12 +54,12 @@ export async function inviteTeamMember(
   eventId: string,
   email: string,
   role: 'admin' | 'editor' | 'viewer'
-) {
+): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { error: 'Not authenticated' };
+    return { success: false, error: 'Not authenticated' };
   }
 
   // Check if already invited
@@ -71,7 +71,7 @@ export async function inviteTeamMember(
     .single();
 
   if (existing) {
-    return { error: 'This email has already been invited' };
+    return { success: false, error: 'This email has already been invited' };
   }
 
   // Check if user exists
@@ -94,7 +94,7 @@ export async function inviteTeamMember(
 
   if (error) {
     console.error('Error inviting team member:', error);
-    return { error: error.message };
+    return { success: false, error: error.message };
   }
 
   revalidatePath(`/events/${eventId}/team`);
@@ -104,7 +104,7 @@ export async function inviteTeamMember(
 /**
  * Remove a team member
  */
-export async function removeTeamMember(memberId: string, eventId: string) {
+export async function removeTeamMember(memberId: string, eventId: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -114,7 +114,7 @@ export async function removeTeamMember(memberId: string, eventId: string) {
 
   if (error) {
     console.error('Error removing team member:', error);
-    return { error: error.message };
+    return { success: false, error: error.message };
   }
 
   revalidatePath(`/events/${eventId}/team`);
@@ -128,7 +128,7 @@ export async function updateTeamMemberRole(
   memberId: string,
   eventId: string,
   role: 'admin' | 'editor' | 'viewer'
-) {
+): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -138,7 +138,7 @@ export async function updateTeamMemberRole(
 
   if (error) {
     console.error('Error updating team member role:', error);
-    return { error: error.message };
+    return { success: false, error: error.message };
   }
 
   revalidatePath(`/events/${eventId}/team`);
@@ -148,7 +148,7 @@ export async function updateTeamMemberRole(
 /**
  * Resend invitation
  */
-export async function resendTeamInvite(memberId: string, eventId: string) {
+export async function resendTeamInvite(memberId: string, eventId: string): Promise<{ success: boolean; error?: string }> {
   // In a real app, this would send an email
   // For now, just update the invited_at timestamp
   const supabase = await createClient();
@@ -160,7 +160,7 @@ export async function resendTeamInvite(memberId: string, eventId: string) {
 
   if (error) {
     console.error('Error resending invite:', error);
-    return { error: error.message };
+    return { success: false, error: error.message };
   }
 
   revalidatePath(`/events/${eventId}/team`);
