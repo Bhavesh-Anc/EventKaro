@@ -216,6 +216,43 @@ CREATE TABLE IF NOT EXISTS public.whatsapp_messages (
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_event ON public.whatsapp_messages(event_id);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_status ON public.whatsapp_messages(status);
 
+-- 1.11 Transportation Routes Table
+CREATE TABLE IF NOT EXISTS public.transportation_routes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  wedding_event_id UUID,
+  name TEXT NOT NULL,
+  description TEXT,
+  vehicle_type TEXT,
+  capacity INTEGER,
+  pickup_location TEXT NOT NULL,
+  pickup_time TIME,
+  dropoff_location TEXT NOT NULL,
+  dropoff_time TIME,
+  driver_name TEXT,
+  driver_phone TEXT,
+  status TEXT DEFAULT 'scheduled',
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_transportation_routes_event ON public.transportation_routes(event_id);
+
+-- 1.12 Seating Arrangements Table
+CREATE TABLE IF NOT EXISTS public.seating_arrangements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  wedding_event_id UUID,
+  name TEXT NOT NULL,
+  table_number INTEGER,
+  capacity INTEGER DEFAULT 10,
+  category TEXT,
+  location_notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_seating_arrangements_event ON public.seating_arrangements(event_id);
+
 -- ============================================================================
 -- STEP 2: CREATE TABLES WITH DEPENDENCIES ON STEP 1 TABLES
 -- ============================================================================
@@ -265,29 +302,7 @@ CREATE INDEX IF NOT EXISTS idx_invitations_guest_id ON public.invitations(guest_
 CREATE INDEX IF NOT EXISTS idx_invitations_token ON public.invitations(token);
 CREATE INDEX IF NOT EXISTS idx_invitations_status ON public.invitations(status);
 
--- 2.3 Transportation Routes Table
-CREATE TABLE IF NOT EXISTS public.transportation_routes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
-  wedding_event_id UUID,
-  name TEXT NOT NULL,
-  description TEXT,
-  vehicle_type TEXT,
-  capacity INTEGER,
-  pickup_location TEXT NOT NULL,
-  pickup_time TIME,
-  dropoff_location TEXT NOT NULL,
-  dropoff_time TIME,
-  driver_name TEXT,
-  driver_phone TEXT,
-  status TEXT DEFAULT 'scheduled',
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_transportation_routes_event ON public.transportation_routes(event_id);
-
--- 2.4 Guest Transportation Assignments
+-- 2.3 Guest Transportation Assignments (depends on transportation_routes and guests)
 CREATE TABLE IF NOT EXISTS public.guest_transportation (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   route_id UUID NOT NULL REFERENCES public.transportation_routes(id) ON DELETE CASCADE,
@@ -301,22 +316,7 @@ CREATE TABLE IF NOT EXISTS public.guest_transportation (
 CREATE INDEX IF NOT EXISTS idx_guest_transportation_route ON public.guest_transportation(route_id);
 CREATE INDEX IF NOT EXISTS idx_guest_transportation_guest ON public.guest_transportation(guest_id);
 
--- 2.5 Seating Arrangements Table
-CREATE TABLE IF NOT EXISTS public.seating_arrangements (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
-  wedding_event_id UUID,
-  name TEXT NOT NULL,
-  table_number INTEGER,
-  capacity INTEGER DEFAULT 10,
-  category TEXT,
-  location_notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_seating_arrangements_event ON public.seating_arrangements(event_id);
-
--- 2.6 Guest Seating Assignments
+-- 2.4 Guest Seating Assignments (depends on seating_arrangements and guests)
 CREATE TABLE IF NOT EXISTS public.guest_seating (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   seating_id UUID NOT NULL REFERENCES public.seating_arrangements(id) ON DELETE CASCADE,
@@ -330,7 +330,81 @@ CREATE INDEX IF NOT EXISTS idx_guest_seating_arrangement ON public.guest_seating
 CREATE INDEX IF NOT EXISTS idx_guest_seating_guest ON public.guest_seating(guest_id);
 
 -- ============================================================================
--- STEP 3: ADD FOREIGN KEY CONSTRAINTS (after all tables exist)
+-- STEP 3: ADD MISSING COLUMNS TO EXISTING TABLES (BEFORE RLS POLICIES!)
+-- ============================================================================
+
+DO $$
+BEGIN
+  -- Add columns to guests table
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'guests') THEN
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS relationship TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS relationship_detail TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS age_group TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'standard'; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS invitation_wave INTEGER DEFAULT 1; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS reminder_count INTEGER DEFAULT 0; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS whatsapp_number TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS preferred_contact TEXT DEFAULT 'email'; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS notes TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS dietary_restrictions TEXT[]; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS accommodation_required BOOLEAN DEFAULT false; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS transportation_required BOOLEAN DEFAULT false; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS arrival_date DATE; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS departure_date DATE; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to vendors table
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'vendors') THEN
+    BEGIN ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS rating DECIMAL(3,2); EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS review_count INTEGER DEFAULT 0; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS portfolio_urls TEXT[]; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add route_id to guest_transportation if missing (critical for RLS policy)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'guest_transportation') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'guest_transportation' AND column_name = 'route_id') THEN
+      BEGIN ALTER TABLE public.guest_transportation ADD COLUMN route_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    END IF;
+    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS guest_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS pickup_confirmed BOOLEAN DEFAULT false; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS notes TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add seating_id to guest_seating if missing (critical for RLS policy)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'guest_seating') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'guest_seating' AND column_name = 'seating_id') THEN
+      BEGIN ALTER TABLE public.guest_seating ADD COLUMN seating_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    END IF;
+    BEGIN ALTER TABLE public.guest_seating ADD COLUMN IF NOT EXISTS guest_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.guest_seating ADD COLUMN IF NOT EXISTS seat_number INTEGER; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to tasks if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tasks') THEN
+    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS vendor_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS notes TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS dependencies UUID[]; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to runsheet_items if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'runsheet_items') THEN
+    BEGIN ALTER TABLE public.runsheet_items ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to transportation_routes if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'transportation_routes') THEN
+    BEGIN ALTER TABLE public.transportation_routes ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+
+  -- Add columns to seating_arrangements if missing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'seating_arrangements') THEN
+    BEGIN ALTER TABLE public.seating_arrangements ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+END $$;
+
+-- ============================================================================
+-- STEP 4: ADD FOREIGN KEY CONSTRAINTS (after all tables exist)
 -- ============================================================================
 
 -- Add FK from tasks to wedding_events (if not already there)
@@ -345,7 +419,7 @@ BEGIN
       ADD CONSTRAINT tasks_wedding_event_id_fkey
       FOREIGN KEY (wedding_event_id) REFERENCES public.wedding_events(id) ON DELETE SET NULL;
     EXCEPTION WHEN OTHERS THEN
-      NULL; -- Ignore if constraint can't be added
+      NULL;
     END;
   END IF;
 END $$;
@@ -368,7 +442,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- STEP 4: ENABLE ROW LEVEL SECURITY
+-- STEP 5: ENABLE ROW LEVEL SECURITY
 -- ============================================================================
 
 ALTER TABLE public.wedding_events ENABLE ROW LEVEL SECURITY;
@@ -389,7 +463,7 @@ ALTER TABLE public.seating_arrangements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.guest_seating ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
--- STEP 5: CREATE RLS POLICIES
+-- STEP 6: CREATE RLS POLICIES
 -- ============================================================================
 
 -- Helper function for org member check
@@ -486,7 +560,7 @@ DROP POLICY IF EXISTS "transport_routes_access" ON public.transportation_routes;
 CREATE POLICY "transport_routes_access" ON public.transportation_routes FOR ALL TO authenticated
   USING (is_org_member_for_event(event_id));
 
--- Guest Transportation
+-- Guest Transportation (route_id column now exists from STEP 3)
 DROP POLICY IF EXISTS "guest_transport_access" ON public.guest_transportation;
 CREATE POLICY "guest_transport_access" ON public.guest_transportation FOR ALL TO authenticated
   USING (
@@ -501,7 +575,7 @@ DROP POLICY IF EXISTS "seating_arrangements_access" ON public.seating_arrangemen
 CREATE POLICY "seating_arrangements_access" ON public.seating_arrangements FOR ALL TO authenticated
   USING (is_org_member_for_event(event_id));
 
--- Guest Seating
+-- Guest Seating (seating_id column now exists from STEP 3)
 DROP POLICY IF EXISTS "guest_seating_access" ON public.guest_seating;
 CREATE POLICY "guest_seating_access" ON public.guest_seating FOR ALL TO authenticated
   USING (
@@ -512,7 +586,7 @@ CREATE POLICY "guest_seating_access" ON public.guest_seating FOR ALL TO authenti
   );
 
 -- ============================================================================
--- STEP 6: INSERT DEFAULT DATA
+-- STEP 7: INSERT DEFAULT DATA
 -- ============================================================================
 
 -- Insert default wedding task templates
@@ -547,7 +621,7 @@ INSERT INTO public.task_templates (template_name, title, description, category, 
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
--- STEP 7: CREATE HELPER FUNCTIONS
+-- STEP 8: CREATE HELPER FUNCTIONS
 -- ============================================================================
 
 -- Function to increment photo likes
@@ -568,76 +642,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
--- ============================================================================
--- STEP 8: ADD MISSING COLUMNS TO EXISTING TABLES
--- ============================================================================
-
-DO $$
-BEGIN
-  -- Add columns to guests table
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'guests') THEN
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS relationship TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS relationship_detail TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS age_group TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'standard'; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS invitation_wave INTEGER DEFAULT 1; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS reminder_count INTEGER DEFAULT 0; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS whatsapp_number TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS preferred_contact TEXT DEFAULT 'email'; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS notes TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS dietary_restrictions TEXT[]; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS accommodation_required BOOLEAN DEFAULT false; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS transportation_required BOOLEAN DEFAULT false; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS arrival_date DATE; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guests ADD COLUMN IF NOT EXISTS departure_date DATE; EXCEPTION WHEN OTHERS THEN NULL; END;
-  END IF;
-
-  -- Add columns to vendors table
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'vendors') THEN
-    BEGIN ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS rating DECIMAL(3,2); EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS review_count INTEGER DEFAULT 0; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS portfolio_urls TEXT[]; EXCEPTION WHEN OTHERS THEN NULL; END;
-  END IF;
-
-  -- Add route_id to guest_transportation if missing
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'guest_transportation') THEN
-    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS route_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS guest_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS pickup_confirmed BOOLEAN DEFAULT false; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guest_transportation ADD COLUMN IF NOT EXISTS notes TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
-  END IF;
-
-  -- Add columns to guest_seating if missing
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'guest_seating') THEN
-    BEGIN ALTER TABLE public.guest_seating ADD COLUMN IF NOT EXISTS seating_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guest_seating ADD COLUMN IF NOT EXISTS guest_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.guest_seating ADD COLUMN IF NOT EXISTS seat_number INTEGER; EXCEPTION WHEN OTHERS THEN NULL; END;
-  END IF;
-
-  -- Add columns to tasks if missing
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tasks') THEN
-    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS vendor_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS notes TEXT; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS dependencies UUID[]; EXCEPTION WHEN OTHERS THEN NULL; END;
-  END IF;
-
-  -- Add columns to runsheet_items if missing
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'runsheet_items') THEN
-    BEGIN ALTER TABLE public.runsheet_items ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
-  END IF;
-
-  -- Add columns to transportation_routes if missing
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'transportation_routes') THEN
-    BEGIN ALTER TABLE public.transportation_routes ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
-  END IF;
-
-  -- Add columns to seating_arrangements if missing
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'seating_arrangements') THEN
-    BEGIN ALTER TABLE public.seating_arrangements ADD COLUMN IF NOT EXISTS wedding_event_id UUID; EXCEPTION WHEN OTHERS THEN NULL; END;
-  END IF;
-END $$;
 
 -- ============================================================================
 -- DONE! All tables created successfully.
