@@ -8,6 +8,7 @@ import type { CategoryBudget } from '@/lib/budget-calculations';
 import { aggregateBudgetSummary } from '@/lib/budget-calculations';
 import { getEventContributions, getContributionSummary } from '@/actions/payments';
 import { getWeddingSettings } from '@/actions/settings';
+import { logQueryError } from '@/lib/query-helpers';
 
 export default async function BudgetPage() {
   const user = await getUser();
@@ -21,12 +22,13 @@ export default async function BudgetPage() {
   const supabase = await createClient();
 
   // Get wedding event
-  const { data: weddingEvents } = await supabase
+  const { data: weddingEvents, error: evtErr } = await supabase
     .from('events')
     .select('id, start_date')
     .eq('organization_id', currentOrg.id)
     .eq('event_type', 'wedding')
     .limit(1);
+  logQueryError('wedding events', evtErr);
 
   const eventId = weddingEvents?.[0]?.id;
   const eventDate = weddingEvents?.[0]?.start_date;
@@ -36,7 +38,7 @@ export default async function BudgetPage() {
   }
 
   // Fetch all budget entries from wedding_event_budgets
-  const { data: budgetEntries } = await supabase
+  const { data: budgetEntries, error: budgetErr } = await supabase
     .from('wedding_event_budgets')
     .select(`
       *,
@@ -44,6 +46,7 @@ export default async function BudgetPage() {
       vendors:vendor_profiles(id, business_name, category)
     `)
     .eq('wedding_events.parent_event_id', eventId);
+  logQueryError('budget entries', budgetErr);
 
   // Aggregate by category
   const categoryMap = new Map<string, CategoryBudget>();

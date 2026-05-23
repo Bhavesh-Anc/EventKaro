@@ -21,6 +21,7 @@ import {
   calculateGuestCostPerUnit,
 } from '@/lib/budget-calculations';
 import { getWeddingSettings } from '@/actions/settings';
+import { logQueryError } from '@/lib/query-helpers';
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -35,11 +36,12 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   // Check if user has any events
-  const { data: allEvents } = await supabase
+  const { data: allEvents, error: allEvtErr } = await supabase
     .from('events')
     .select('id')
     .eq('organization_id', currentOrg.id)
     .limit(1);
+  logQueryError('all events', allEvtErr);
 
   // If no events, redirect to event creation
   if (!allEvents || allEvents.length === 0) {
@@ -47,13 +49,14 @@ export default async function DashboardPage() {
   }
 
   // Fetch wedding events for this organization
-  const { data: weddingEvents } = await supabase
+  const { data: weddingEvents, error: wedEvtErr } = await supabase
     .from('events')
     .select('*')
     .eq('organization_id', currentOrg.id)
     .eq('event_type', 'wedding')
     .order('start_date', { ascending: true })
     .limit(1);
+  logQueryError('wedding events', wedEvtErr);
 
   const weddingEvent = weddingEvents?.[0];
 
@@ -63,20 +66,22 @@ export default async function DashboardPage() {
     : 0;
 
   // Fetch guest statistics
-  const { data: guests, count: totalGuests } = await supabase
+  const { data: guests, count: totalGuests, error: guestErr } = await supabase
     .from('guests')
     .select('rsvp_status, rsvp_date', { count: 'exact' })
     .eq('organization_id', currentOrg.id);
+  logQueryError('guests', guestErr);
 
   const confirmedGuests = guests?.filter((g) => g.rsvp_status === 'accepted').length || 0;
   const pendingGuests = guests?.filter((g) => g.rsvp_status === 'pending').length || 0;
   const declinedGuests = guests?.filter((g) => g.rsvp_status === 'declined').length || 0;
 
   // Fetch tasks
-  const { data: tasks, count: totalTasks } = await supabase
+  const { data: tasks, count: totalTasks, error: taskErr } = await supabase
     .from('tasks')
     .select('*', { count: 'exact' })
     .eq('organization_id', currentOrg.id);
+  logQueryError('tasks', taskErr);
 
   const tasksCompleted = tasks?.filter((t) => t.completed).length || 0;
 
@@ -92,7 +97,7 @@ export default async function DashboardPage() {
 
   if (weddingEvent) {
     // Fetch all budget entries from wedding_event_budgets
-    const { data: budgetEntries } = await supabase
+    const { data: budgetEntries, error: budgetErr } = await supabase
       .from('wedding_event_budgets')
       .select(`
         *,
@@ -100,6 +105,7 @@ export default async function DashboardPage() {
         vendors:vendor_profiles(id, business_name, category)
       `)
       .eq('wedding_events.parent_event_id', weddingEvent.id);
+    logQueryError('budget entries', budgetErr);
 
     if (budgetEntries && budgetEntries.length > 0) {
       // Aggregate by category
@@ -192,29 +198,32 @@ export default async function DashboardPage() {
   }
 
   // Fetch all wedding sub-events with vendor assignments for status calculation
-  const { data: weddingSubEvents } = weddingEvent
-    ? await supabase
-        .from('wedding_events')
-        .select(`
-          *,
-          vendor_assignments:wedding_event_vendor_assignments(
+  let weddingSubEvents: any[] = [];
+  if (weddingEvent) {
+    const { data, error: subEvtErr } = await supabase
+      .from('wedding_events')
+      .select(`
+        *,
+        vendor_assignments:wedding_event_vendor_assignments(
+          id,
+          status,
+          vendors(
             id,
-            status,
-            vendors(
-              id,
-              business_name,
-              category
-            )
-          ),
-          budget:wedding_event_budgets(
-            allocated_amount,
-            spent_amount
+            business_name,
+            category
           )
-        `)
-        .eq('parent_event_id', weddingEvent.id)
-        .gte('start_datetime', new Date().toISOString())
-        .order('start_datetime', { ascending: true })
-    : { data: [] };
+        ),
+        budget:wedding_event_budgets(
+          allocated_amount,
+          spent_amount
+        )
+      `)
+      .eq('parent_event_id', weddingEvent.id)
+      .gte('start_datetime', new Date().toISOString())
+      .order('start_datetime', { ascending: true });
+    logQueryError('wedding sub-events', subEvtErr);
+    weddingSubEvents = data || [];
+  }
 
   // Format events for timeline component
   const timelineEvents = weddingSubEvents?.map((e: any) => ({
@@ -233,7 +242,7 @@ export default async function DashboardPage() {
   })) || [];
 
   // Fetch vendors assigned to this event
-  const { data: vendorAssignments } = await supabase
+  const { data: vendorAssignments, error: vendorErr } = await supabase
     .from('wedding_event_vendor_assignments')
     .select(`
       id,
@@ -248,6 +257,7 @@ export default async function DashboardPage() {
     `)
     .eq('parent_event_id', weddingEvent?.id)
     .limit(5);
+  logQueryError('vendor assignments', vendorErr);
 
   const vendors = vendorAssignments?.map((va: any) => ({
     id: va.vendors.id,

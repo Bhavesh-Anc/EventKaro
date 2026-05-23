@@ -2,6 +2,7 @@ import { getEvent } from '@/actions/events';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { logQueryError } from '@/lib/query-helpers';
 
 function formatINR(paise: number) {
   return `₹${(paise / 100).toLocaleString('en-IN')}`;
@@ -22,10 +23,11 @@ export default async function EventAnalyticsPage({
   const supabase = await createClient();
 
   // Guests for this event
-  const { data: guests } = await supabase
+  const { data: guests, error: guestErr } = await supabase
     .from('guests')
     .select('rsvp_status')
     .eq('event_id', eventId);
+  logQueryError('analytics guests', guestErr);
 
   const totalGuests = guests?.length || 0;
   const confirmed = guests?.filter((g) => g.rsvp_status === 'accepted').length || 0;
@@ -34,20 +36,22 @@ export default async function EventAnalyticsPage({
   const responseRate = totalGuests > 0 ? Math.round(((confirmed + declined) / totalGuests) * 100) : 0;
 
   // Tasks for this event
-  const { data: tasks } = await supabase
+  const { data: tasks, error: taskErr } = await supabase
     .from('tasks')
     .select('completed')
     .eq('event_id', eventId);
+  logQueryError('analytics tasks', taskErr);
 
   const totalTasks = tasks?.length || 0;
   const completedTasks = tasks?.filter((t) => t.completed).length || 0;
   const taskProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   // Budget for this wedding (entries are linked via wedding_events.parent_event_id)
-  const { data: budgetEntries } = await supabase
+  const { data: budgetEntries, error: budgetErr } = await supabase
     .from('wedding_event_budgets')
     .select('planned_amount_inr, committed_amount_inr, paid_amount_inr, pending_amount_inr, wedding_events!inner(parent_event_id)')
     .eq('wedding_events.parent_event_id', eventId);
+  logQueryError('analytics budget', budgetErr);
 
   const budget = (budgetEntries || []).reduce(
     (acc, e: any) => ({

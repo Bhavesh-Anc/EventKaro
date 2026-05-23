@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { TimelineView } from '@/components/features/timeline-view';
 import { UnifiedTimeline, type TimelineTask, type TimelineVendorBooking, type TimelineEvent as UnifiedTimelineEvent } from '@/components/features/unified-timeline';
 import { TimelinePageClient } from '@/components/features/timeline-page-client';
+import { logQueryError } from '@/lib/query-helpers';
 
 /**
  * EVENTS & TIMELINE TAB
@@ -25,13 +26,14 @@ export default async function TimelinePage() {
   const supabase = await createClient();
 
   // Fetch wedding event
-  const { data: weddingEvents } = await supabase
+  const { data: weddingEvents, error: evtErr } = await supabase
     .from('events')
     .select('*')
     .eq('organization_id', currentOrg.id)
     .eq('event_type', 'wedding')
     .order('start_date', { ascending: true })
     .limit(1);
+  logQueryError('wedding events', evtErr);
 
   const weddingEvent = weddingEvents?.[0];
 
@@ -51,15 +53,16 @@ export default async function TimelinePage() {
   }
 
   // Fetch tasks with due dates for this organization
-  const { data: tasksData } = await supabase
+  const { data: tasksData, error: taskErr } = await supabase
     .from('tasks')
     .select('*')
     .eq('organization_id', currentOrg.id)
     .not('due_date', 'is', null)
     .order('due_date', { ascending: true });
+  logQueryError('timeline tasks', taskErr);
 
   // Fetch vendor bookings with payment schedules
-  const { data: vendorBookings } = await supabase
+  const { data: vendorBookings, error: bookErr } = await supabase
     .from('wedding_event_budgets')
     .select(`
       id,
@@ -71,6 +74,7 @@ export default async function TimelinePage() {
       vendors:vendor_profiles(id, business_name, category)
     `)
     .not('vendor_id', 'is', null);
+  logQueryError('vendor bookings', bookErr);
 
   // Format events for unified timeline
   const unifiedEvents: UnifiedTimelineEvent[] = (weddingSubEvents || []).map((e: any) => ({

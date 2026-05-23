@@ -9,6 +9,7 @@ import type { IndividualGuest } from '@/components/features/individuals-view';
 import type { LogisticsGuest, HotelAssignment, PickupAssignment, GuestTravelDetails } from '@/components/features/logistics-view';
 import { calculateGuestCosts } from '@/lib/guest-calculations';
 import { getWeddingSettings } from '@/actions/settings';
+import { logQueryError } from '@/lib/query-helpers';
 
 export default async function GuestsPage() {
   const user = await getUser();
@@ -22,12 +23,13 @@ export default async function GuestsPage() {
   const supabase = await createClient();
 
   // Get wedding event for this organization
-  const { data: weddingEvents } = await supabase
+  const { data: weddingEvents, error: evtErr } = await supabase
     .from('events')
     .select('id, title, start_date')
     .eq('organization_id', currentOrg.id)
     .eq('event_type', 'wedding')
     .limit(1);
+  logQueryError('wedding events', evtErr);
 
   const weddingEvent = weddingEvents?.[0];
   const eventId = weddingEvent?.id;
@@ -37,18 +39,20 @@ export default async function GuestsPage() {
   }
 
   // Fetch all family groups with their data
-  const { data: familyGroups } = await supabase
+  const { data: familyGroups, error: famErr } = await supabase
     .from('wedding_family_groups')
     .select('*')
     .eq('event_id', eventId)
     .order('family_name');
+  logQueryError('family groups', famErr);
 
   // Fetch all guests for this event
-  const { data: allGuests } = await supabase
+  const { data: allGuests, error: guestErr } = await supabase
     .from('guests')
     .select('*')
     .eq('event_id', eventId)
     .order('name');
+  logQueryError('guests', guestErr);
 
   // Transform family groups to FamilyCardData
   const families: FamilyCardData[] = (familyGroups || []).map((fg: any) => ({
