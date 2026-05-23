@@ -4,11 +4,8 @@ import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, IndianRupee, Save, AlertCircle } from 'lucide-react';
-import {
-  getCurrentWeddingSettings,
-  updateCurrentWeddingSettings,
-  DEFAULT_WEDDING_SETTINGS,
-} from '@/actions/settings';
+import { getCurrentWeddingSettings, updateCurrentWeddingSettings } from '@/actions/settings';
+import { DEFAULT_WEDDING_SETTINGS } from '@/lib/wedding-settings';
 
 export default function BudgetSettingsPage() {
   const router = useRouter();

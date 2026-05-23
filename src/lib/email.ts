@@ -1,13 +1,13 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'invitations@eventkaro.com';
 const FROM_NAME = process.env.RESEND_FROM_NAME || 'EventKaro';
 
 // Email delivery is only attempted when a Resend API key is configured.
 // Without it, sends are skipped (logged) so the app keeps working in dev.
+// The client is created lazily because `new Resend(undefined)` throws at import.
 const EMAIL_ENABLED = Boolean(process.env.RESEND_API_KEY);
+const resend = EMAIL_ENABLED ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export interface InvitationEmailData {
   guestName: string;
@@ -36,7 +36,7 @@ export async function sendInvitationEmail(data: InvitationEmailData) {
     return { success: true, skipped: true };
   }
   try {
-    const { data: result, error } = await resend.emails.send({
+    const { data: result, error } = await resend!.emails.send({
       from: `${FROM_NAME} <${FROM_EMAIL}>`,
       to: data.guestEmail,
       subject: `You're invited to ${data.eventTitle}!`,
@@ -169,7 +169,7 @@ export async function sendRSVPConfirmationEmail(data: RSVPConfirmationEmailData)
                        data.rsvpStatus === 'declined' ? 'declined the invitation' :
                        'marked yourself as maybe attending';
 
-    const { data: result, error } = await resend.emails.send({
+    const { data: result, error } = await resend!.emails.send({
       from: `${FROM_NAME} <${FROM_EMAIL}>`,
       to: data.guestEmail,
       subject: `RSVP Confirmation - ${data.eventTitle}`,
@@ -296,7 +296,7 @@ export async function sendGenericEmail(to: string, subject: string, bodyText: st
         <p style="color: #6b7280; font-size: 13px;">Powered by EventKaro</p>
       </div>
     `;
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await resend!.emails.send({
       from: `${FROM_NAME} <${FROM_EMAIL}>`,
       to,
       subject,
@@ -322,7 +322,7 @@ export async function sendTestEmail(to: string) {
     return { success: true, skipped: true };
   }
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await resend!.emails.send({
       from: `${FROM_NAME} <${FROM_EMAIL}>`,
       to,
       subject: 'EventKaro Email Test',

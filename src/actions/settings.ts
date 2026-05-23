@@ -3,20 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getUserOrganizations } from '@/actions/organizations';
-
-export interface WeddingSettings {
-  total_budget_inr: number;
-  catering_per_head_inr: number;
-  room_per_night_inr: number;
-  transport_per_seat_inr: number;
-}
-
-export const DEFAULT_WEDDING_SETTINGS: WeddingSettings = {
-  total_budget_inr: 4200000,
-  catering_per_head_inr: 1500,
-  room_per_night_inr: 4000,
-  transport_per_seat_inr: 500,
-};
+import { DEFAULT_WEDDING_SETTINGS, type WeddingSettings } from '@/lib/wedding-settings';
 
 /**
  * Get settings for a specific wedding event. Falls back to sensible defaults
