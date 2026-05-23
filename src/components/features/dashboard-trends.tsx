@@ -64,10 +64,10 @@ function MiniChart({ data, color }: { data: number[]; color: string }) {
 }
 
 export function DashboardTrends({ stats }: Props) {
-  // Mock weekly data for charts (would come from database in production)
-  const guestChartData = [3, 5, 2, 8, 12, 7, stats.guestsConfirmed.current];
-  const taskChartData = [2, 4, 3, 5, 4, 6, stats.tasksCompleted.current];
-  const rsvpChartData = [1, 3, 2, 4, 6, 5, stats.rsvpResponses.current];
+  // Sparkline endpoints derived from real previous/current values (no fabricated history)
+  const guestChartData = [stats.guestsConfirmed.previous, stats.guestsConfirmed.current];
+  const taskChartData = [stats.tasksCompleted.previous, stats.tasksCompleted.current];
+  const rsvpChartData = [stats.rsvpResponses.previous, stats.rsvpResponses.current];
 
   return (
     <div className="rounded-xl bg-white border border-gray-200 p-6 shadow-sm">

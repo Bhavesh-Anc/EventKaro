@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { PaymentInstallments } from '@/components/features/payment-installments';
+import { markInstallmentPaid } from '@/actions/payments';
 
 interface VendorPayment {
   vendor_id: string;
@@ -19,8 +20,15 @@ interface Props {
 export function PaymentInstallmentsSection({ eventId, vendorPayments }: Props) {
   const router = useRouter();
 
-  const handleMarkPaid = async (installmentId: string, paymentDetails: any) => {
-    // TODO: Implement mark as paid action
+  const handleMarkPaid = async (
+    installmentId: string,
+    paymentDetails: { amount: number; method: string; reference?: string; date: string }
+  ) => {
+    const result = await markInstallmentPaid(installmentId, paymentDetails);
+    if (result?.error) {
+      console.error('Failed to mark installment paid:', result.error);
+      return;
+    }
     router.refresh();
   };
 

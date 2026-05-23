@@ -7,6 +7,7 @@ import { BudgetContributions } from '@/components/features/budget-contributions'
 import type { CategoryBudget } from '@/lib/budget-calculations';
 import { aggregateBudgetSummary } from '@/lib/budget-calculations';
 import { getEventContributions, getContributionSummary } from '@/actions/payments';
+import { getWeddingSettings } from '@/actions/settings';
 
 export default async function BudgetPage() {
   const user = await getUser();
@@ -80,8 +81,9 @@ export default async function BudgetPage() {
     };
   });
 
-  // Set total budget (₹42L in paise - would come from settings in production)
-  const totalBudget = 4200000 * 100;
+  // Total budget from saved wedding settings (stored in rupees, used here as paise)
+  const settings = await getWeddingSettings(eventId);
+  const totalBudget = settings.total_budget_inr * 100;
 
   const summary = aggregateBudgetSummary(categories, totalBudget);
 

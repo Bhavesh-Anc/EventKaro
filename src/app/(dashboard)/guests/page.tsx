@@ -8,6 +8,7 @@ import type { FamilyMember } from '@/components/features/family-detail-drawer';
 import type { IndividualGuest } from '@/components/features/individuals-view';
 import type { LogisticsGuest, HotelAssignment, PickupAssignment, GuestTravelDetails } from '@/components/features/logistics-view';
 import { calculateGuestCosts } from '@/lib/guest-calculations';
+import { getWeddingSettings } from '@/actions/settings';
 
 export default async function GuestsPage() {
   const user = await getUser();
@@ -215,16 +216,17 @@ export default async function GuestsPage() {
       };
     });
 
-  // Calculate cost impact per family
+  // Calculate cost impact per family using saved cost assumptions
+  const settings = await getWeddingSettings(eventId);
   const costImpact: Record<string, any> = {};
   families.forEach((family) => {
     const memberCount = family.total_members;
     const costs = calculateGuestCosts(memberCount, {
-      cateringPerHead: 1500,
+      cateringPerHead: settings.catering_per_head_inr,
       roomsNeeded: family.rooms_required,
-      roomCostPerNight: 4000,
+      roomCostPerNight: settings.room_per_night_inr,
       transportSeats: family.pickup_required ? memberCount : 0,
-      transportCostPerSeat: 500,
+      transportCostPerSeat: settings.transport_per_seat_inr,
     });
     costImpact[family.id] = costs;
   });

@@ -20,6 +20,7 @@ import {
   generateBudgetAlerts,
   calculateGuestCostPerUnit,
 } from '@/lib/budget-calculations';
+import { getWeddingSettings } from '@/actions/settings';
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -64,7 +65,7 @@ export default async function DashboardPage() {
   // Fetch guest statistics
   const { data: guests, count: totalGuests } = await supabase
     .from('guests')
-    .select('rsvp_status', { count: 'exact' })
+    .select('rsvp_status, rsvp_date', { count: 'exact' })
     .eq('organization_id', currentOrg.id);
 
   const confirmedGuests = guests?.filter((g) => g.rsvp_status === 'accepted').length || 0;
@@ -137,8 +138,9 @@ export default async function DashboardPage() {
         };
       });
 
-      // Set total budget (₹42L in paise - would come from settings in production)
-      const totalBudgetInPaise = 4200000 * 100;
+      // Total budget from saved wedding settings (stored in rupees, used here as paise)
+      const weddingSettings = await getWeddingSettings(weddingEvent.id);
+      const totalBudgetInPaise = weddingSettings.total_budget_inr * 100;
 
       // Calculate budget summary
       budgetSummary = aggregateBudgetSummary(categories, totalBudgetInPaise);
@@ -266,38 +268,61 @@ export default async function DashboardPage() {
     assignee: t.assignee || 'Unassigned',
   })) || [];
 
-  // Calculate weekly trends (comparing this week vs last week)
-  const oneWeekAgo = subDays(new Date(), 7);
-  const twoWeeksAgo = subDays(new Date(), 14);
+  // Calculate weekly trends from real timestamps (this week vs the prior week)
+  const now = new Date();
+  const oneWeekAgo = subDays(now, 7);
+  const twoWeeksAgo = subDays(now, 14);
 
-  // Get this week's confirmed guests
-  const thisWeekConfirmed = confirmedGuests; // We'd need timestamp tracking for accurate weekly data
-  const lastWeekConfirmed = Math.max(0, confirmedGuests - Math.floor(Math.random() * 10)); // Simulated for demo
+  const inWindow = (value: string | null | undefined, from: Date, to: Date) => {
+    if (!value) return false;
+    const t = new Date(value).getTime();
+    return t >= from.getTime() && t < to.getTime();
+  };
 
-  // Get this week's completed tasks
-  const thisWeekTasks = tasksCompleted;
-  const lastWeekTasks = Math.max(0, tasksCompleted - Math.floor(Math.random() * 5));
+  // Confirmed guests / RSVP responses bucketed by rsvp_date
+  const thisWeekConfirmed = (guests || []).filter(
+    (g) => g.rsvp_status === 'accepted' && inWindow(g.rsvp_date, oneWeekAgo, now)
+  ).length;
+  const lastWeekConfirmed = (guests || []).filter(
+    (g) => g.rsvp_status === 'accepted' && inWindow(g.rsvp_date, twoWeeksAgo, oneWeekAgo)
+  ).length;
 
-  // Weekly trends data
+  const isResponded = (s: string) => s === 'accepted' || s === 'declined';
+  const thisWeekResponses = (guests || []).filter(
+    (g) => isResponded(g.rsvp_status) && inWindow(g.rsvp_date, oneWeekAgo, now)
+  ).length;
+  const lastWeekResponses = (guests || []).filter(
+    (g) => isResponded(g.rsvp_status) && inWindow(g.rsvp_date, twoWeeksAgo, oneWeekAgo)
+  ).length;
+
+  // Completed tasks bucketed by completed_at
+  const thisWeekTasks = (tasks || []).filter(
+    (t) => t.completed && inWindow(t.completed_at, oneWeekAgo, now)
+  ).length;
+  const lastWeekTasks = (tasks || []).filter(
+    (t) => t.completed && inWindow(t.completed_at, twoWeeksAgo, oneWeekAgo)
+  ).length;
+
+  // Weekly trends data (real values; budget lacks per-payment dates so it shows the running total)
   const weeklyStats = {
     guestsConfirmed: {
-      current: thisWeekConfirmed - lastWeekConfirmed || confirmedGuests,
-      previous: lastWeekConfirmed > 0 ? Math.floor(lastWeekConfirmed * 0.7) : 0,
+      current: thisWeekConfirmed,
+      previous: lastWeekConfirmed,
       label: 'Guests Confirmed',
     },
     tasksCompleted: {
-      current: thisWeekTasks - lastWeekTasks || tasksCompleted,
-      previous: lastWeekTasks > 0 ? Math.floor(lastWeekTasks * 0.8) : 0,
+      current: thisWeekTasks,
+      previous: lastWeekTasks,
       label: 'Tasks Completed',
     },
     budgetSpent: {
       current: budgetSummary?.paid || 0,
-      previous: Math.floor((budgetSummary?.paid || 0) * 0.85),
+      previous: 0,
       label: 'Budget Spent',
     },
     rsvpResponses: {
-      current: confirmedGuests + declinedGuests,
-      previous: Math.max(0, (confirmedGuests + declinedGuests) - 5),
+      current: thisWeekResponses,
+      previous: lastWeekResponses,
       label: 'RSVP Responses',
     },
   };

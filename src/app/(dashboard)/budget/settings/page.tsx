@@ -1,16 +1,34 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, IndianRupee, Save, AlertCircle } from 'lucide-react';
+import {
+  getCurrentWeddingSettings,
+  updateCurrentWeddingSettings,
+  DEFAULT_WEDDING_SETTINGS,
+} from '@/actions/settings';
 
 export default function BudgetSettingsPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [totalBudget, setTotalBudget] = useState('4200000'); // Default ₹42L
+  const [totalBudget, setTotalBudget] = useState(String(DEFAULT_WEDDING_SETTINGS.total_budget_inr));
+  const [cateringPerHead, setCateringPerHead] = useState(String(DEFAULT_WEDDING_SETTINGS.catering_per_head_inr));
+  const [roomPerNight, setRoomPerNight] = useState(String(DEFAULT_WEDDING_SETTINGS.room_per_night_inr));
+  const [transportPerSeat, setTransportPerSeat] = useState(String(DEFAULT_WEDDING_SETTINGS.transport_per_seat_inr));
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Load saved settings from the database
+  useEffect(() => {
+    getCurrentWeddingSettings().then((s) => {
+      setTotalBudget(String(s.total_budget_inr));
+      setCateringPerHead(String(s.catering_per_head_inr));
+      setRoomPerNight(String(s.room_per_night_inr));
+      setTransportPerSeat(String(s.transport_per_seat_inr));
+    });
+  }, []);
 
   // Preset budget options in INR
   const presets = [
@@ -33,9 +51,18 @@ export default function BudgetSettingsPage() {
     }
 
     startTransition(async () => {
-      // For now, we'll store this in localStorage as a simple solution
-      // In production, this would be saved to the database
-      localStorage.setItem('wedding_total_budget', totalBudget);
+      const result = await updateCurrentWeddingSettings({
+        total_budget_inr: budgetValue,
+        catering_per_head_inr: parseInt(cateringPerHead) || DEFAULT_WEDDING_SETTINGS.catering_per_head_inr,
+        room_per_night_inr: parseInt(roomPerNight) || DEFAULT_WEDDING_SETTINGS.room_per_night_inr,
+        transport_per_seat_inr: parseInt(transportPerSeat) || DEFAULT_WEDDING_SETTINGS.transport_per_seat_inr,
+      });
+
+      if (!result.success) {
+        setError(result.error || 'Failed to save settings');
+        return;
+      }
+
       setSuccess(true);
       setTimeout(() => {
         router.push('/budget');
@@ -127,6 +154,48 @@ export default function BudgetSettingsPage() {
                 {preset.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Cost Assumptions */}
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-gray-900 mb-3">
+            Per-Guest Cost Assumptions (₹)
+          </label>
+          <p className="text-xs text-gray-500 mb-3">
+            Used to estimate the cost impact of guest counts across catering, rooms and transport.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <span className="block text-xs text-gray-600 mb-1">Catering / head</span>
+              <input
+                type="number"
+                value={cateringPerHead}
+                onChange={(e) => setCateringPerHead(e.target.value)}
+                min="0"
+                className="w-full px-3 py-2 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+              />
+            </div>
+            <div>
+              <span className="block text-xs text-gray-600 mb-1">Room / night</span>
+              <input
+                type="number"
+                value={roomPerNight}
+                onChange={(e) => setRoomPerNight(e.target.value)}
+                min="0"
+                className="w-full px-3 py-2 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+              />
+            </div>
+            <div>
+              <span className="block text-xs text-gray-600 mb-1">Transport / seat</span>
+              <input
+                type="number"
+                value={transportPerSeat}
+                onChange={(e) => setTransportPerSeat(e.target.value)}
+                min="0"
+                className="w-full px-3 py-2 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+              />
+            </div>
           </div>
         </div>
 

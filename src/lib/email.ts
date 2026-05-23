@@ -5,6 +5,10 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'invitations@eventkaro.com';
 const FROM_NAME = process.env.RESEND_FROM_NAME || 'EventKaro';
 
+// Email delivery is only attempted when a Resend API key is configured.
+// Without it, sends are skipped (logged) so the app keeps working in dev.
+const EMAIL_ENABLED = Boolean(process.env.RESEND_API_KEY);
+
 export interface InvitationEmailData {
   guestName: string;
   guestEmail: string;
@@ -27,6 +31,10 @@ export interface RSVPConfirmationEmailData {
  * Send an invitation email to a guest
  */
 export async function sendInvitationEmail(data: InvitationEmailData) {
+  if (!EMAIL_ENABLED) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping invitation email to ${data.guestEmail}`);
+    return { success: true, skipped: true };
+  }
   try {
     const { data: result, error } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM_EMAIL}>`,
@@ -151,6 +159,10 @@ export async function sendInvitationEmail(data: InvitationEmailData) {
  * Send RSVP confirmation email
  */
 export async function sendRSVPConfirmationEmail(data: RSVPConfirmationEmailData) {
+  if (!EMAIL_ENABLED) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping RSVP confirmation email to ${data.guestEmail}`);
+    return { success: true, skipped: true };
+  }
   try {
     const statusEmoji = data.rsvpStatus === 'accepted' ? '✅' : data.rsvpStatus === 'declined' ? '❌' : '❓';
     const statusText = data.rsvpStatus === 'accepted' ? 'confirmed your attendance' :
@@ -268,9 +280,47 @@ export async function sendRSVPConfirmationEmail(data: RSVPConfirmationEmailData)
 }
 
 /**
+ * Send a generic notification/reminder email.
+ */
+export async function sendGenericEmail(to: string, subject: string, bodyText: string) {
+  if (!EMAIL_ENABLED) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping notification email to ${to}`);
+    return { success: true, skipped: true };
+  }
+  try {
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+        <h2 style="color: #9f1239;">${subject}</h2>
+        <p style="white-space: pre-line; line-height: 1.6;">${bodyText}</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #6b7280; font-size: 13px;">Powered by EventKaro</p>
+      </div>
+    `;
+    const { data, error } = await resend.emails.send({
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
+      to,
+      subject,
+      html,
+    });
+    if (error) {
+      console.error('Error sending notification email:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('Error sending notification email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Send a test email (for debugging)
  */
 export async function sendTestEmail(to: string) {
+  if (!EMAIL_ENABLED) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping test email to ${to}`);
+    return { success: true, skipped: true };
+  }
   try {
     const { data, error } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM_EMAIL}>`,

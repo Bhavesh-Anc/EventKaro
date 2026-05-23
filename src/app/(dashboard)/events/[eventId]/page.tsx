@@ -150,13 +150,6 @@ export default async function EventDetailPage({
             </Link>
           )}
           <Link
-            href={`/events/${eventId}/tickets`}
-            className="rounded-md border p-4 text-center hover:bg-muted block"
-          >
-            <div className="text-2xl mb-2">🎫</div>
-            <h4 className="font-medium">Manage Tickets</h4>
-          </Link>
-          <Link
             href={`/events/${eventId}/guests`}
             className="rounded-md border p-4 text-center hover:bg-muted block"
           >

@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import crypto from 'crypto';
+import { sendInvitationEmail as deliverInvitationEmail } from '@/lib/email';
+import { sendWhatsAppMessage } from '@/lib/messaging';
 
 export interface Invitation {
   id: string;
@@ -176,8 +178,20 @@ export async function sendInvitationEmail(invitationId: string, customMessage?: 
     return { error: 'Invalid invitation or guest has no email' };
   }
 
-  // TODO: Integrate with actual email service (SendGrid, Resend, etc.)
-  // For now, we'll just update the status
+  // Deliver via Resend (no-ops with a log if RESEND_API_KEY is not configured)
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const delivery = await deliverInvitationEmail({
+    guestName: invitation.guest.name,
+    guestEmail: invitation.guest.email,
+    eventTitle: invitation.event?.title || 'Our Wedding',
+    eventDate: invitation.event?.start_date || '',
+    eventLocation: invitation.event?.venue_name || invitation.event?.venue_address || undefined,
+    invitationUrl: `${baseUrl}/rsvp/${invitation.token}`,
+  });
+
+  if (!delivery.success) {
+    return { error: delivery.error || 'Failed to send invitation email' };
+  }
 
   const { error } = await supabase
     .from('invitations')
@@ -221,8 +235,17 @@ export async function sendInvitationWhatsApp(invitationId: string, customMessage
     return { error: 'Guest has no WhatsApp number' };
   }
 
-  // TODO: Integrate with WhatsApp Business API
-  // For now, we'll just update the status
+  // Deliver via WhatsApp provider (no-ops with a log if not configured)
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const rsvpUrl = `${baseUrl}/rsvp/${invitation.token}`;
+  const message =
+    customMessage ||
+    `Hi ${invitation.guest?.name || 'there'}! You're invited. Please RSVP here: ${rsvpUrl}`;
+  const delivery = await sendWhatsAppMessage(whatsappNumber, message);
+
+  if (!delivery.success) {
+    return { error: delivery.error || 'Failed to send WhatsApp invitation' };
+  }
 
   const { error } = await supabase
     .from('invitations')

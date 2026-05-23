@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { sendGenericEmail } from '@/lib/email';
+import { sendWhatsAppMessage } from '@/lib/messaging';
 
 export interface Reminder {
   id: string;
@@ -331,8 +333,36 @@ export async function sendReminderNow(reminderId: string) {
     return { error: 'Reminder not found' };
   }
 
-  // TODO: Implement actual sending logic via email/whatsapp/sms
-  // For now, just mark as sent
+  // Resolve recipient guests based on the reminder's target group
+  let guestQuery = supabase
+    .from('guests')
+    .select('name, email, whatsapp_number, phone, rsvp_status')
+    .eq('event_id', reminder.event_id);
+
+  if (reminder.recipients === 'pending_rsvp') {
+    guestQuery = guestQuery.eq('rsvp_status', 'pending');
+  } else if (reminder.recipients === 'confirmed_guests') {
+    guestQuery = guestQuery.eq('rsvp_status', 'accepted');
+  } else if (reminder.recipients === 'specific' && reminder.recipient_ids?.length) {
+    guestQuery = guestQuery.in('id', reminder.recipient_ids);
+  }
+
+  // 'team' reminders aren't guest-targeted; skip dispatch for those.
+  let sentCount = 0;
+  if (reminder.recipients !== 'team') {
+    const { data: recipients } = await guestQuery;
+    for (const g of recipients || []) {
+      // Senders no-op (and log) when their provider keys aren't configured.
+      if (g.email) {
+        await sendGenericEmail(g.email, reminder.title, reminder.message);
+        sentCount++;
+      }
+      const waNumber = g.whatsapp_number || g.phone;
+      if (waNumber) {
+        await sendWhatsAppMessage(waNumber, `${reminder.title}\n\n${reminder.message}`);
+      }
+    }
+  }
 
   const { error } = await supabase
     .from('reminders')
@@ -347,7 +377,7 @@ export async function sendReminderNow(reminderId: string) {
   }
 
   revalidatePath(`/events/${reminder.event_id}/reminders`);
-  return { success: true };
+  return { success: true, recipientsNotified: sentCount };
 }
 
 /**
