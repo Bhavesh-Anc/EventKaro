@@ -290,10 +290,46 @@ export function VendorProfileForm({
 
       {/* Social Media Links */}
       <div className="rounded-lg border p-6 space-y-6">
-        <h3 className="text-lg font-semibold">Social Media (Coming Soon)</h3>
-        <p className="text-sm text-muted-foreground">
-          Social media integration will be available in the next update. You'll be able to add links to your Instagram, Facebook, and YouTube profiles.
+        <h3 className="text-lg font-semibold">Social Media</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Add your social media profiles to help clients find you online.
         </p>
+
+        <div>
+          <Label htmlFor="instagram_url">Instagram</Label>
+          <Input
+            id="instagram_url"
+            name="instagram_url"
+            type="url"
+            disabled={isPending}
+            defaultValue={vendor.instagram_url || ''}
+            placeholder="https://instagram.com/yourbusiness"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="facebook_url">Facebook</Label>
+          <Input
+            id="facebook_url"
+            name="facebook_url"
+            type="url"
+            disabled={isPending}
+            defaultValue={vendor.facebook_url || ''}
+            placeholder="https://facebook.com/yourbusiness"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="youtube_url">YouTube</Label>
+          <Input
+            id="youtube_url"
+            name="youtube_url"
+            type="url"
+            disabled={isPending}
+            defaultValue={vendor.youtube_url || ''}
+            placeholder="https://youtube.com/@yourbusiness"
+          />
+        </div>
       </div>
 
       {/* Submit Button */}

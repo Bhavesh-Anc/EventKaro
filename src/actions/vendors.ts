@@ -158,6 +158,9 @@ export async function updateVendorProfile(formData: FormData) {
   const teamSize = formData.get('team_size') ? parseInt(formData.get('team_size') as string) : null;
   const gstNumber = formData.get('gst_number') as string || null;
   const priceRange = formData.get('price_range') as string || null;
+  const instagramUrl = formData.get('instagram_url') as string || null;
+  const facebookUrl = formData.get('facebook_url') as string || null;
+  const youtubeUrl = formData.get('youtube_url') as string || null;
 
   const { error } = await supabase
     .from('vendors')
@@ -176,6 +179,9 @@ export async function updateVendorProfile(formData: FormData) {
       team_size: teamSize,
       gst_number: gstNumber,
       price_range: priceRange,
+      instagram_url: instagramUrl,
+      facebook_url: facebookUrl,
+      youtube_url: youtubeUrl,
     })
     .eq('id', vendorId)
     .eq('user_id', user.id);
