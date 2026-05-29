@@ -334,10 +334,6 @@ export async function logBudgetScopeChange(params: {
 }) {
   const supabase = await createClient();
 
-  // TODO: Create scope_changes table to track this
-  // For now, we'll just return success
-  // In production, you'd insert into a scope_changes table:
-  /*
   const { data, error } = await supabase
     .from('budget_scope_changes')
     .insert({
@@ -352,15 +348,15 @@ export async function logBudgetScopeChange(params: {
     })
     .select()
     .single();
-  */
+
+  if (error) {
+    console.error('Error logging budget scope change:', error);
+    return { success: false, error: error.message };
+  }
 
   revalidatePath('/budget');
   revalidatePath('/dashboard');
-  return {
-    success: true,
-    message: 'Scope change logged (table creation pending)',
-    data: params
-  };
+  return { success: true, data };
 }
 
 /**

@@ -68,7 +68,7 @@ export default async function DashboardPage() {
   // Fetch guest statistics
   const { data: guests, count: totalGuests, error: guestErr } = await supabase
     .from('guests')
-    .select('rsvp_status, rsvp_date', { count: 'exact' })
+    .select('rsvp_status, rsvp_date, rsvp_updated_at', { count: 'exact' })
     .eq('organization_id', currentOrg.id);
   logQueryError('guests', guestErr);
 
@@ -171,9 +171,18 @@ export default async function DashboardPage() {
       vendorsPending = vendorEntries.filter((e: any) => e.pending_amount_inr > 0).length;
       totalPendingAmount = budgetEntries.reduce((sum: number, e: any) => sum + (e.pending_amount_inr || 0), 0);
 
-      // Calculate late RSVP stats (guests confirmed after a certain date)
-      const lateRSVPCount = 0; // TODO: Calculate from guest RSVP timestamps
-      const lateRSVPCost = 0; // TODO: Calculate additional catering cost
+      // Calculate late RSVP stats (guests confirmed after cutoff date)
+      const cutoffDate = weddingSettings.rsvp_cutoff_date
+        ? new Date(weddingSettings.rsvp_cutoff_date)
+        : null;
+      const lateRSVPCount = cutoffDate
+        ? (guests || []).filter((g: any) =>
+            g.rsvp_status === 'accepted' &&
+            g.rsvp_updated_at &&
+            new Date(g.rsvp_updated_at) > cutoffDate
+          ).length
+        : 0;
+      const lateRSVPCost = lateRSVPCount * weddingSettings.catering_per_head_inr;
 
       // Count unpaid vendors near event date
       const unpaidVendorsCount = vendorsPending;
@@ -225,6 +234,16 @@ export default async function DashboardPage() {
     weddingSubEvents = data || [];
   }
 
+  // Check if any transportation is scheduled for this wedding
+  let hasTransportAssigned = false;
+  if (weddingEvent) {
+    const { count: transportCount } = await supabase
+      .from('wedding_transportation_schedule')
+      .select('id', { count: 'exact', head: true })
+      .eq('parent_event_id', weddingEvent.id);
+    hasTransportAssigned = (transportCount || 0) > 0;
+  }
+
   // Format events for timeline component
   const timelineEvents = weddingSubEvents?.map((e: any) => ({
     id: e.id,
@@ -238,7 +257,7 @@ export default async function DashboardPage() {
     vendor_assignments: e.vendor_assignments,
     budget_allocated: e.budget?.[0]?.allocated_amount || 0,
     has_transport: e.transport_required || false,
-    transport_assigned: false, // TODO: Check transport assignments
+    transport_assigned: hasTransportAssigned,
   })) || [];
 
   // Fetch vendors assigned to this event

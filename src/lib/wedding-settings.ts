@@ -6,6 +6,7 @@ export interface WeddingSettings {
   catering_per_head_inr: number;
   room_per_night_inr: number;
   transport_per_seat_inr: number;
+  rsvp_cutoff_date?: string;
 }
 
 export const DEFAULT_WEDDING_SETTINGS: WeddingSettings = {
@@ -13,4 +14,5 @@ export const DEFAULT_WEDDING_SETTINGS: WeddingSettings = {
   catering_per_head_inr: 1500,
   room_per_night_inr: 4000,
   transport_per_seat_inr: 500,
+  rsvp_cutoff_date: undefined,
 };

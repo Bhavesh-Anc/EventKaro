@@ -14,7 +14,7 @@ export async function getWeddingSettings(eventId: string): Promise<WeddingSettin
 
   const { data, error } = await supabase
     .from('wedding_settings')
-    .select('total_budget_inr, catering_per_head_inr, room_per_night_inr, transport_per_seat_inr')
+    .select('total_budget_inr, catering_per_head_inr, room_per_night_inr, transport_per_seat_inr, rsvp_cutoff_date')
     .eq('event_id', eventId)
     .maybeSingle();
 
