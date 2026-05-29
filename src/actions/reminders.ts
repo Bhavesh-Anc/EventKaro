@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { sendGenericEmail } from '@/lib/email';
-import { sendWhatsAppMessage } from '@/lib/messaging';
+import { sendWhatsAppMessage, sendSMSMessage } from '@/lib/messaging';
 
 export interface Reminder {
   id: string;
@@ -351,15 +351,22 @@ export async function sendReminderNow(reminderId: string) {
   let sentCount = 0;
   if (reminder.recipients !== 'team') {
     const { data: recipients } = await guestQuery;
+    const sendVia = reminder.send_via || ['email'];
+
     for (const g of recipients || []) {
       // Senders no-op (and log) when their provider keys aren't configured.
-      if (g.email) {
+      if (sendVia.includes('email') && g.email) {
         await sendGenericEmail(g.email, reminder.title, reminder.message);
         sentCount++;
       }
+
       const waNumber = g.whatsapp_number || g.phone;
-      if (waNumber) {
+      if (sendVia.includes('whatsapp') && waNumber) {
         await sendWhatsAppMessage(waNumber, `${reminder.title}\n\n${reminder.message}`);
+      }
+
+      if (sendVia.includes('sms') && g.phone) {
+        await sendSMSMessage(g.phone, `${reminder.title}\n\n${reminder.message}`);
       }
     }
   }

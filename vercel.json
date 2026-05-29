@@ -1,6 +1,12 @@
 {
   "buildCommand": "npm run build",
   "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/send-reminders",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

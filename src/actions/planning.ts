@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { sendRSVPConfirmationEmail } from '@/lib/email';
 
 // ============================================
 // GUEST LIST MANAGEMENT
@@ -596,7 +597,7 @@ export async function submitGuestRSVP(formData: FormData) {
   // Check if this is an update to existing guest or new guest
   const { data: existingGuest } = await supabase
     .from('guests')
-    .select('id, event_id')
+    .select('id, event_id, name')
     .eq('invitation_token', invitationToken)
     .single();
 
@@ -658,6 +659,24 @@ export async function submitGuestRSVP(formData: FormData) {
         responded_at: new Date().toISOString(),
       })
       .eq('invitation_token', invitationToken);
+
+    // Send RSVP confirmation email (fire-and-forget, don't block on failure)
+    if (email) {
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('title, start_date, venue_name, venue_city')
+        .eq('id', existingGuest.event_id)
+        .single();
+
+      sendRSVPConfirmationEmail({
+        guestName: firstName || existingGuest.name || 'Guest',
+        guestEmail: email,
+        eventTitle: eventData?.title || 'Wedding Celebration',
+        eventDate: eventData?.start_date || '',
+        eventLocation: [eventData?.venue_name, eventData?.venue_city].filter(Boolean).join(', ') || undefined,
+        rsvpStatus,
+      }).catch((err) => console.warn('[rsvp] Failed to send confirmation email:', err));
+    }
 
     revalidatePath(`/events/${existingGuest.event_id}/guests`);
   } else {
