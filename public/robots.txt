@@ -1,0 +1,19 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /events/
+Disallow: /budget/
+Disallow: /guests/
+Disallow: /vendors/
+Disallow: /timeline/
+Disallow: /settings/
+Disallow: /organizations/
+
+# Public pages are allowed
+Allow: /share/
+Allow: /login
+Allow: /signup
+
+Sitemap: https://eventkaro.in/sitemap.xml
