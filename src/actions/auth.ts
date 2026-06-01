@@ -182,3 +182,62 @@ export async function signupAsVendor(formData: FormData) {
   revalidatePath('/', 'layout');
   redirect('/vendor/profile');
 }
+
+export async function updateUserProfile(params: {
+  fullName: string;
+  phone?: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Not authenticated' };
+  }
+
+  // Update auth metadata
+  const { error: authError } = await supabase.auth.updateUser({
+    data: { full_name: params.fullName },
+  });
+
+  if (authError) {
+    return { error: authError.message };
+  }
+
+  // Update profile table
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .upsert({
+      id: user.id,
+      full_name: params.fullName,
+      phone: params.phone || null,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (profileError) {
+    console.error('Profile update error:', profileError);
+    return { error: profileError.message };
+  }
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+export async function getUserProfile() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  return {
+    id: user.id,
+    email: user.email,
+    fullName: user.user_metadata?.full_name || profile?.full_name || '',
+    phone: profile?.phone || '',
+  };
+}

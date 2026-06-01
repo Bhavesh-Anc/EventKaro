@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   Camera,
   Upload,
@@ -457,10 +458,12 @@ export function PhotoGallery({
 
             <div className="bg-gray-100 p-6 rounded-xl mb-4">
               <div className="bg-white p-4 rounded-lg inline-block">
-                {/* Placeholder for QR code - in real app, use a QR library */}
-                <div className="w-48 h-48 bg-gray-200 flex items-center justify-center">
-                  <QrCode className="h-24 w-24 text-gray-400" />
-                </div>
+                <QRCodeSVG
+                  value={uploadQRUrl}
+                  size={192}
+                  level="M"
+                  includeMargin={false}
+                />
               </div>
             </div>
 

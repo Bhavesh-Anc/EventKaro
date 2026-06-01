@@ -94,3 +94,40 @@ export async function getOrganization(orgId: string) {
   if (error) return null;
   return data;
 }
+
+export async function updateOrganization(orgId: string, params: { name: string }) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: 'Not authenticated' };
+  }
+
+  // Check user is a member of this org
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('role')
+    .eq('organization_id', orgId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!membership || !['owner', 'admin'].includes(membership.role)) {
+    return { error: 'Not authorized to update this organization' };
+  }
+
+  const { error } = await supabase
+    .from('organizations')
+    .update({
+      name: params.name,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', orgId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/settings');
+  revalidatePath('/dashboard');
+  return { success: true };
+}
