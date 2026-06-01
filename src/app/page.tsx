@@ -102,7 +102,7 @@ export default function HomePage() {
             <h3 className="text-2xl font-bold mb-2">Are you a Wedding Vendor?</h3>
             <p className="text-gray-300 mb-4">Join our platform to connect with couples and grow your business</p>
             <Link
-              href="/vendors/register"
+              href="/become-vendor/register"
               className="inline-block rounded-lg bg-white px-6 py-3 text-lg font-semibold text-gray-900 hover:bg-gray-100 transition-all"
             >
               Register as Vendor
