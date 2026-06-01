@@ -148,6 +148,7 @@ export default async function TimelinePage() {
       unifiedVendorBookings={unifiedVendorBookings}
       parentEventId={weddingEvent.id}
       weddingDate={weddingEvent.start_date}
+      eventSlug={weddingEvent.slug}
     />
   );
 }
